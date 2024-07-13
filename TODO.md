@@ -1,0 +1,11 @@
+- [x] Remove direct use of gstreamer elements in rendering, necessary to decouple the tracer
+- [x] Move tracer to a separate crate and build as a shared library
+- [ ] Use #[derive(Bundle)] to clean up the components
+- [ ] Display pads
+- [ ] Attach edges to pads
+- [ ] Replace bin's default toggle by a click on the whole box
+- [ ] Display link content as a tooltip
+- [ ] Fix nodes margins when zooming
+- [ ] Add inspector for elements, pads, links
+- [ ] Allow saving and reloading sessions
+- [ ] Add a timeline that allows to revert to a previous state

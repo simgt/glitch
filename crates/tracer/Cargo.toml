@@ -1,0 +1,32 @@
+[package]
+name = "glitch-tracer"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+authors.workspace = true
+description.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+crossbeam.workspace = true
+glib.workspace = true
+glitch-data = { path = "../data" }
+gst-app.workspace = true
+gst-audio.workspace = true
+gst-base.workspace = true
+gst-sys.workspace = true
+gst-utils.workspace = true
+gst-video.workspace = true
+gst.workspace = true
+log.workspace = true
+once_cell = "1"
+remoc.workspace = true
+tokio.workspace = true
+
+[lib]
+# We should add dylib here to allow for hot reloading, but we get a compiler
+# issue when building crates that depend on this one
+crate-type = ["rlib", "cdylib"]
+
+[build-dependencies]
+gst-plugin-version-helper = "0.8"

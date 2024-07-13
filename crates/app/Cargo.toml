@@ -1,0 +1,24 @@
+[package]
+name = "glitch-app"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+authors.workspace = true
+description.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+clap = { version = "4", features = ["derive"] }
+eframe.workspace = true
+glib.workspace = true
+glitch-render = { path = "../render" }
+hot-lib-reloader = { version = "^0.7", optional = true }
+tracing-subscriber = { version = "0.3", features = [
+    "tracing-log",
+    "env-filter",
+] }
+log.workspace = true
+tracing.workspace = true
+
+[features]
+reload = ["dep:hot-lib-reloader"]
