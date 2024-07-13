@@ -1,0 +1,8 @@
+commands:
+  app: |
+    cargo watch -i crates/render -x 'run -F reload'
+  deps: |
+    cargo watch -i crates/app -x build
+
+#  test: |
+#    cargo watch -w crates/tracer -x 'gst-launch-1.0 videotestsrc ! tee name=tee ! queue ! x264enc ! h264parse ! decodebin ! fakesink'

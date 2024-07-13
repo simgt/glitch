@@ -1,0 +1,39 @@
+[package]
+name = "glitch-render"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+authors.workspace = true
+description.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+crossbeam.workspace = true
+eframe.workspace = true
+egui.workspace = true
+egui_extras.workspace = true
+epaint.workspace = true
+glib.workspace = true
+glitch-data = { path = "../data" }
+gst-app.workspace = true
+gst-audio.workspace = true
+gst-base.workspace = true
+gst-sys.workspace = true
+gst-utils.workspace = true
+gst-video.workspace = true
+gst.workspace = true
+hecs = { version = "0.10", features = ["macros", "serde"] }
+hecs-hierarchy = "0.12"
+image = { version = "0.25", default-features = false, features = ["png"] }
+log.workspace = true
+petgraph = "0.6.5"
+remoc.workspace = true
+rfd = "0.14"
+tempfile = "3.8"
+tokio.workspace = true
+tracing.workspace = true
+
+[lib]
+# We should add dylib here to allow for hot reloading, but we get a compiler
+# issue when building crates that depend on this one
+crate-type = ["rlib", "cdylib"]

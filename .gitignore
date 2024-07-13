@@ -1,0 +1,13 @@
+debug/
+target/
+.DS_Store
+/target
+/Cargo.lock
+.env
+**/__pycache__
+*.sqlite*
+*.so
+
+*.dot
+*.png
+*.onnx

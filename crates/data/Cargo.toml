@@ -1,0 +1,22 @@
+[package]
+name = "glitch-data"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+authors.workspace = true
+description.workspace = true
+
+[dependencies]
+egui.workspace = true
+glib.workspace = true
+gst-sys.workspace = true
+gst.workspace = true
+hecs = "0.10"
+hecs-hierarchy = "0.12"
+tracing.workspace = true
+remoc.workspace = true
+serde.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+test-log = { version = "0.2", features = ["trace"] }
