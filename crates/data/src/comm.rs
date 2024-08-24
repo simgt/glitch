@@ -86,15 +86,26 @@ mod tests {
         // Send a couple events on client_tx, and compare them with server_rx
         let event1 = Event::ChangeElementState {
             element: Element {
-                id: ObjectId(0),
-                name: "name".to_string(),
+                id: RemoteId(0),
+                name: "name".to_string().into(),
+                type_name: "type".to_string().into(),
+                properties: Default::default(),
+                node: Node,
             },
-            state: ElementState::Playing,
+            state: State::Playing,
         };
         let event2 = Event::LinkPad {
-            src_pad: Pad { id: ObjectId(1) },
-            sink_pad: Pad { id: ObjectId(2) },
-            state: LinkState::Pending,
+            src_pad: Pad {
+                id: RemoteId(1),
+                name: "src".to_string().into(),
+                port: Port::Input,
+            },
+            sink_pad: Pad {
+                id: RemoteId(2),
+                name: "sink".to_string().into(),
+                port: Port::Input,
+            },
+            state: State::Pending,
         };
         client_tx.send(event1.clone()).await.unwrap();
         client_tx.send(event2.clone()).await.unwrap();

@@ -1,5 +1,5 @@
 [package]
-name = "glitch-render"
+name = "glitch-draw"
 version.workspace = true
 edition.workspace = true
 repository.workspace = true
@@ -22,16 +22,15 @@ gst-sys.workspace = true
 gst-utils.workspace = true
 gst-video.workspace = true
 gst.workspace = true
-hecs = { version = "0.10", features = ["macros", "serde"] }
-hecs-hierarchy = "0.12"
+hecs.workspace = true
 image = { version = "0.25", default-features = false, features = ["png"] }
 log.workspace = true
-petgraph = "0.6.5"
+petgraph.workspace = true
 remoc.workspace = true
-rfd = "0.14"
 tempfile = "3.8"
-tokio.workspace = true
 tracing.workspace = true
+ron = "0.8"
+serde = { workspace = true, features = ["derive"] }
 
 [lib]
 # We should add dylib here to allow for hot reloading, but we get a compiler

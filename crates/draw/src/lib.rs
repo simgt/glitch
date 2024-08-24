@@ -1,11 +1,11 @@
-mod floating_area;
+mod draw;
 mod layout;
 mod pan_zoom_area;
-mod render;
+mod style;
 mod zoom;
 
-pub use floating_area::*;
+pub use draw::*;
 pub use layout::*;
 pub use pan_zoom_area::*;
-pub use render::*;
+pub use style::*;
 pub use zoom::*;

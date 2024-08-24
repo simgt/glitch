@@ -6,17 +6,21 @@ repository.workspace = true
 authors.workspace = true
 description.workspace = true
 
+[features]
+gstreamer = ["gst", "gst-sys", "glib"]
+
 [dependencies]
+derive_more.workspace = true
 egui.workspace = true
-glib.workspace = true
-gst-sys.workspace = true
-gst.workspace = true
-hecs = "0.10"
-hecs-hierarchy = "0.12"
-tracing.workspace = true
+glib = { workspace = true, optional = true }
+gst = { workspace = true, optional = true }
+gst-sys = { workspace = true, optional = true }
+hecs.workspace = true
+petgraph.workspace = true
 remoc.workspace = true
 serde.workspace = true
 tokio.workspace = true
+tracing.workspace = true
 
 [dev-dependencies]
 test-log = { version = "0.2", features = ["trace"] }

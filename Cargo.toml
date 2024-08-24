@@ -12,6 +12,7 @@ edition = "2021"
 [workspace.dependencies]
 anyhow = "1"
 crossbeam = { version = "0.8", features = ["crossbeam-channel"] }
+derive_more = { version = "1", features = ["full"] }
 eframe = "0.28"
 egui = "0.28"
 egui_extras = { version = "0.28", features = ["image"] }
@@ -24,8 +25,14 @@ gst-base = { package = 'gstreamer-base', version = "0" }
 gst-sys = { package = "gstreamer-sys", version = "0" }
 gst-utils = { package = "gstreamer-utils", version = "0" }
 gst-video = { package = "gstreamer-video", version = "0" }
+hecs = { version = "0.10", features = ["macros", "serde", "row-serialize"] }
 log = "0.4"
+petgraph = "0.6"
 remoc = "0.14"
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = [
+    "tracing-log",
+    "env-filter",
+] }
