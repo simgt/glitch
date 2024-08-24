@@ -28,12 +28,13 @@ use egui::{
 
 pub trait Zoom {
     #[inline(always)]
-    fn zoomed(mut self, zoom: f32) -> Self
+    fn zoomed(&self, zoom: f32) -> Self
     where
-        Self: Copy,
+        Self: Clone,
     {
-        self.zoom(zoom);
-        self
+        let mut clone = self.clone();
+        clone.zoom(zoom);
+        clone
     }
 
     fn zoom(&mut self, zoom: f32);

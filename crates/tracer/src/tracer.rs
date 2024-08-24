@@ -6,7 +6,7 @@ glib::wrapper! {
 }
 
 mod imp {
-    use glitch_data::{connect_client, ElementState, Event, LinkState};
+    use glitch_data::{connect_client, Event, State};
     use gst::{glib, prelude::*, subclass::prelude::*};
     use log::*;
     use once_cell::sync::Lazy;
@@ -48,7 +48,6 @@ mod imp {
             self.parent_constructed();
             self.register_hook(TracerHook::BinAddPost);
             self.register_hook(TracerHook::ElementAddPad);
-            self.register_hook(TracerHook::ElementRemovePad);
             self.register_hook(TracerHook::ElementChangeStatePost);
             self.register_hook(TracerHook::ElementNew);
             self.register_hook(TracerHook::PadLinkPost);
@@ -67,10 +66,6 @@ mod imp {
             });
         }
 
-        fn element_remove_pad(&self, _ts: u64, element: &gst::Element, pad: &gst::Pad) {
-            assert_eq!(pad.parent_element().as_ref(), Some(element));
-        }
-
         fn element_change_state_post(
             &self,
             ts: u64,
@@ -82,12 +77,12 @@ mod imp {
                 let _ = self.tx.blocking_send(Event::ChangeElementState {
                     element: element.into(),
                     state: match change {
-                        gst::StateChange::NullToReady => ElementState::Ready,
-                        gst::StateChange::ReadyToPaused => ElementState::Paused,
-                        gst::StateChange::PausedToPlaying => ElementState::Playing,
-                        gst::StateChange::PlayingToPaused => ElementState::Paused,
-                        gst::StateChange::PausedToReady => ElementState::Ready,
-                        gst::StateChange::ReadyToNull => ElementState::Null,
+                        gst::StateChange::NullToReady => State::Ready,
+                        gst::StateChange::ReadyToPaused => State::Paused,
+                        gst::StateChange::PausedToPlaying => State::Playing,
+                        gst::StateChange::PlayingToPaused => State::Paused,
+                        gst::StateChange::PausedToReady => State::Ready,
+                        gst::StateChange::ReadyToNull => State::Null,
                         _ => return,
                     },
                 });
@@ -114,7 +109,7 @@ mod imp {
             let _ = self.tx.blocking_send(Event::LinkPad {
                 src_pad: src.into(),
                 sink_pad: sink.into(),
-                state: LinkState::Pending,
+                state: State::Pending,
             });
         }
 
@@ -129,8 +124,8 @@ mod imp {
                 src_pad: src_pad.into(),
                 sink_pad: sink_pad.into(),
                 state: match result {
-                    Ok(_) => LinkState::Done,
-                    Err(_) => LinkState::Failed,
+                    Ok(_) => State::Done,
+                    Err(_) => State::Failed,
                 },
             });
         }

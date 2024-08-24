@@ -4,7 +4,6 @@ use egui::emath::TSTransform;
 pub struct PanZoomArea;
 
 #[derive(Clone, Default, Debug)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 struct State {
     transform: TSTransform,
 }
@@ -23,8 +22,8 @@ impl PanZoomArea {
     pub fn show<R>(
         self,
         ui: &mut egui::Ui,
-        add_contents: impl FnOnce(&mut egui::Ui, TSTransform) -> R,
-    ) -> R {
+        add_contents: impl FnOnce(&mut egui::Ui, f32) -> R,
+    ) -> egui::InnerResponse<R> {
         let ctx = ui.ctx().clone();
         let (id, rect) = ui.allocate_space(ui.available_size());
         let mut state = State::load(&ctx, id).unwrap_or_default();
@@ -61,8 +60,13 @@ impl PanZoomArea {
             }
         }
 
-        let inner = add_contents(ui, state.transform);
+        let mut inner_rect = ui.max_rect();
+        inner_rect.min += transform.translation;
+        inner_rect.max = inner_rect.max.max(inner_rect.min);
+        let mut content_ui = ui.child_ui_with_id_source(inner_rect, *ui.layout(), "child", None);
+        let ret = add_contents(&mut content_ui, state.transform.scaling);
+        let response = ui.allocate_rect(content_ui.min_rect(), egui::Sense::hover());
         state.store(&ctx, id);
-        inner
+        egui::InnerResponse::new(ret, response)
     }
 }

@@ -10,14 +10,15 @@ description.workspace = true
 anyhow.workspace = true
 clap = { version = "4", features = ["derive"] }
 eframe.workspace = true
+egui.workspace = true
 glib.workspace = true
-glitch-render = { path = "../render" }
+glitch-data = { path = "../data" }
+glitch-draw = { path = "../draw" }
+hecs.workspace = true
 hot-lib-reloader = { version = "^0.7", optional = true }
-tracing-subscriber = { version = "0.3", features = [
-    "tracing-log",
-    "env-filter",
-] }
 log.workspace = true
+tokio.workspace = true
+tracing-subscriber.workspace = true
 tracing.workspace = true
 
 [features]

@@ -10,7 +10,7 @@ description.workspace = true
 anyhow.workspace = true
 crossbeam.workspace = true
 glib.workspace = true
-glitch-data = { path = "../data" }
+glitch-data = { path = "../data", features = ["gstreamer"] }
 gst-app.workspace = true
 gst-audio.workspace = true
 gst-base.workspace = true
