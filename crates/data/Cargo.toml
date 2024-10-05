@@ -12,6 +12,7 @@ gstreamer = ["gst", "gst-sys", "glib"]
 [dependencies]
 derive_more.workspace = true
 egui.workspace = true
+enum_dispatch = "0.3.13"
 glib = { workspace = true, optional = true }
 gst = { workspace = true, optional = true }
 gst-sys = { workspace = true, optional = true }

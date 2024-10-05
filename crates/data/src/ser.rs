@@ -5,8 +5,6 @@ pub struct SerContext;
 
 #[derive(serde::Serialize, serde::Deserialize)]
 enum ComponentId {
-    Element,
-    Pad,
     Child,
     Link,
 }
@@ -20,8 +18,6 @@ impl SerializeContext for SerContext {
     where
         S: serde::ser::SerializeMap,
     {
-        try_serialize::<Element, _, _>(&entity, &ComponentId::Element, &mut map)?;
-        try_serialize::<Pad, _, _>(&entity, &ComponentId::Pad, &mut map)?;
         try_serialize::<Child, _, _>(&entity, &ComponentId::Child, &mut map)?;
         try_serialize::<Edge, _, _>(&entity, &ComponentId::Link, &mut map)?;
         map.end()
@@ -39,12 +35,6 @@ impl DeserializeContext for SerContext {
     {
         while let Some(key) = map.next_key()? {
             match key {
-                ComponentId::Element => {
-                    entity.add::<Element>(map.next_value()?);
-                }
-                ComponentId::Pad => {
-                    entity.add::<Pad>(map.next_value()?);
-                }
                 ComponentId::Child => {
                     entity.add::<Child>(map.next_value()?);
                 }

@@ -19,7 +19,14 @@ pub fn draw(
     ctx: &egui::Context,
     _frame: &mut eframe::Frame,
 ) {
-    let organise_shortcut = egui::KeyboardShortcut::new(Modifiers::COMMAND, egui::Key::O);
+    let mut buffer = hecs::CommandBuffer::new();
+    for (entity, _) in world.query::<&Node>().without::<&Size>().iter() {
+        buffer.insert_one(entity, Size(Vec2::ZERO));
+    }
+    buffer.run_on(world);
+
+    let organise_shortcut = egui::KeyboardShortcut::new(Modifiers::COMMAND, egui::Key::R);
+    let reorganise = ctx.input_mut(|i| i.consume_shortcut(&organise_shortcut));
 
     egui::CentralPanel::default()
         .frame(egui::containers::Frame {
@@ -55,9 +62,10 @@ pub fn draw(
                         || changes.removed().count() > 0
                 };
 
-                if topology_changed {
+                if topology_changed || reorganise {
                     // FIXME Only relayout the trees that have changed
                     // Should be easy to trace back to the roots with ancestors and a set
+                    info!("Relayouting");
                     let mut buffer = hecs::CommandBuffer::new();
                     for &entity in parent_nodes.iter() {
                         if let Err(e) = layout.update_topology(world, entity, &mut buffer) {
@@ -108,6 +116,7 @@ pub fn draw(
 
     egui::SidePanel::right("inspector")
         .resizable(false)
+        .min_width(200.0)
         .frame(egui::containers::Frame {
             fill: ctx.style().visuals.window_fill.gamma_multiply(0.95),
             inner_margin: egui::Margin::symmetric(10.0, 20.0),
@@ -125,12 +134,6 @@ pub fn draw(
                             ui.label("Entity");
                             ui.label(format!("{:?}", selected));
                             ui.end_row();
-
-                            if let Ok(id) = world.get::<&RemoteId>(selected) {
-                                ui.label("Object ID");
-                                ui.label(id.0.to_string());
-                                ui.end_row();
-                            }
                         }
 
                         if let Ok(name) = world.get::<&Name>(selected) {
@@ -176,7 +179,7 @@ pub fn draw(
             });
         });
 
-    if ctx.input_mut(|i| i.consume_shortcut(&organise_shortcut)) {
+    if reorganise {
         ctx.memory_mut(|mem| mem.reset_areas());
     }
 
@@ -196,6 +199,39 @@ fn draw_debug_window(ctx: &egui::Context, world: &mut hecs::World) {
                 .show(ui, |ui| {
                     ui.label("World size:");
                     ui.label(world.len().to_string());
+                    ui.end_row();
+
+                    ui.label("Number of nodes:");
+                    ui.label(
+                        world
+                            .query::<()>()
+                            .with::<&Node>()
+                            .iter()
+                            .count()
+                            .to_string(),
+                    );
+                    ui.end_row();
+
+                    ui.label("Number of edges:");
+                    ui.label(
+                        world
+                            .query::<()>()
+                            .with::<&Edge>()
+                            .iter()
+                            .count()
+                            .to_string(),
+                    );
+                    ui.end_row();
+
+                    ui.label("Number of ports:");
+                    ui.label(
+                        world
+                            .query::<()>()
+                            .with::<&Port>()
+                            .iter()
+                            .count()
+                            .to_string(),
+                    );
                     ui.end_row();
 
                     ui.label("Debug on hover");
@@ -331,9 +367,9 @@ fn draw_node(
 
             state.show_body_unindented(ui, |ui| {
                 let edges: Vec<_> = world
-                    .query::<(&Edge,)>()
+                    .query::<&Edge>()
                     .iter()
-                    .filter_map(|(_, (edge,))| {
+                    .filter_map(|(_, edge)| {
                         // If the link is connected to a port that belongs to
                         // one of the children of this node, we will draw it
                         if children.iter().cloned().any(|c| {
@@ -371,11 +407,17 @@ fn draw_node(
                 for link in edges.iter() {
                     let from = match world.get::<&Pos2>(link.output_port) {
                         Ok(pos) => pos,
-                        Err(_) => continue,
+                        Err(_) => {
+                            error!("Link output port not found");
+                            continue;
+                        }
                     };
                     let to = match world.get::<&Pos2>(link.input_port) {
                         Ok(pos) => pos,
-                        Err(_) => continue,
+                        Err(_) => {
+                            error!("Link input port not found");
+                            continue;
+                        }
                     };
 
                     shapes.push(epaint::Shape::CubicBezier(

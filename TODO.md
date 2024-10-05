@@ -22,6 +22,6 @@ Bugs and code improvements:
 - [x] Add a Node empty component instead of relying on ElementState as marker
 - [x] Add a Port marker to the Pad bundle
 - [x] Rename references to Element to Node and Pad to Port in the drawing code
-- [ ] Abstract away gstreamer from the communication layer (CommandBuffer?)
+- [x] Abstract away gstreamer from the communication layer
 - [ ] Relayout shouldn't when translating the view
 - [ ] Store nodes sizes and positions in ctx.memory()
