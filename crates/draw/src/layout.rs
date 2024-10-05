@@ -51,11 +51,11 @@ impl DAGLayout {
 
         // Iterate over all the wires, and add the edges that are to and from
         // nodes of this graph
-        for (_, (wire,)) in world.query::<(&Edge,)>().iter() {
+        for (_, edge) in world.query::<&Edge>().iter() {
             let Ok(from_node) = world
-                .parent(wire.output_port)
+                .parent(edge.output_port)
                 .with_context(|| {
-                    format!("Output port {:?} doesn't have a parent", wire.output_port)
+                    format!("Output port {:?} doesn't have a parent", edge.output_port)
                 })
                 .inspect_err(|e| error!("{e}"))
             else {
@@ -63,8 +63,8 @@ impl DAGLayout {
             };
 
             let Ok(to_node) = world
-                .parent(wire.input_port)
-                .with_context(|| format!("Input port {:?} doesn't have a parent", wire.input_port))
+                .parent(edge.input_port)
+                .with_context(|| format!("Input port {:?} doesn't have a parent", edge.input_port))
                 .inspect_err(|e| error!("{e}"))
             else {
                 continue;

@@ -1,5 +1,7 @@
+mod exts;
 mod tracer;
 
+pub use exts::*;
 pub use tracer::*;
 
 mod gst_plugin {

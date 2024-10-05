@@ -1,15 +1,16 @@
-mod world_ext;
+use std::collections::HashMap;
+
 use anyhow::Result;
 use clap::Parser;
 use eframe::egui;
 use glitch_data::*;
 #[cfg(not(feature = "reload"))]
 use glitch_draw::*;
+use hecs::Entity;
 #[cfg(feature = "reload")]
 use hot_lib::*;
 use tracing::debug;
 use tracing_subscriber::{prelude::*, EnvFilter};
-use world_ext::WorldExt;
 
 #[cfg(feature = "reload")]
 #[hot_lib_reloader::hot_module(
@@ -32,9 +33,10 @@ struct Args {}
 
 pub struct App {
     world: hecs::World,
+    remote_entities: HashMap<Entity, Entity>,
     #[allow(dead_code)]
     rt: tokio::runtime::Runtime,
-    rx: tokio::sync::mpsc::Receiver<Event>,
+    rx: tokio::sync::mpsc::Receiver<Command>,
     draw_state: DrawState,
 }
 
@@ -62,16 +64,28 @@ impl App {
 
         Self {
             world: hecs::World::new(),
+            remote_entities: HashMap::default(),
             rt,
             rx,
             draw_state: DrawState::default(),
         }
     }
+
+    pub fn recv_commands(&mut self, ctx: &egui::Context) {
+        while let Ok(mut cmd) = self.rx.try_recv() {
+            cmd.translate_entities(&mut self.remote_entities, &mut self.world);
+            debug!("Received command: {cmd:?}");
+            cmd.run_on(&mut self.world);
+        }
+
+        // FIXME this is a hack to make sure the update function is recalled
+        ctx.request_repaint();
+    }
 }
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        dequeue_events(&mut self.rx, &mut self.world, ctx);
+        self.recv_commands(ctx);
         draw(&mut self.draw_state, &mut self.world, ctx, frame);
     }
 }
@@ -113,55 +127,4 @@ fn main() -> Result<(), eframe::Error> {
             Ok(Box::new(App::new(cc, args)))
         }),
     )
-}
-
-pub fn dequeue_events(
-    rx: &mut tokio::sync::mpsc::Receiver<Event>,
-    world: &mut hecs::World,
-    ctx: &egui::Context,
-) {
-    // Process events while there are any
-    // We're receiving events in a way that doesn't seem logical, for instance
-    // in the case of decodebin pads are linked before being added, etc.
-    // To account for that we always tentatively create related entities
-    while let Ok(event) = rx.try_recv() {
-        debug!("Received event: {event:?}");
-        match event {
-            Event::NewElement(element) => {
-                let _ = world.update_element(element);
-            }
-            Event::ChangeElementState { element, state } => {
-                let e = world.update_element(element);
-                let _ = world.insert_one(e, state);
-            }
-            Event::AddChildElement { child, parent } => {
-                let child = world.update_element(child);
-                let parent = world.update_element(parent);
-                world.insert_one(child, Child { parent }).unwrap();
-            }
-            Event::AddPad { pad, element } => {
-                let node = world.update_element(element);
-                let port = world
-                    .find_entity(pad.id)
-                    .unwrap_or_else(|| world.spawn_pad(pad));
-                world.insert_one(port, Child { parent: node }).unwrap();
-            }
-            Event::LinkPad {
-                src_pad, sink_pad, ..
-            } => {
-                let output_port = world
-                    .find_entity(src_pad.id)
-                    .unwrap_or_else(|| world.spawn_pad(src_pad));
-                let input_port = world
-                    .find_entity(sink_pad.id)
-                    .unwrap_or_else(|| world.spawn_pad(sink_pad));
-                world.spawn((Edge {
-                    output_port,
-                    input_port,
-                },));
-            }
-        }
-    }
-
-    ctx.request_repaint();
 }

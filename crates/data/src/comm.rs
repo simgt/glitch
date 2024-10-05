@@ -1,10 +1,17 @@
-use crate::{Event, DEFAULT_PORT};
+// Intended API of our communication layer
+//
+// Tracer can send any type that is serializable through serde.
+// Server receives the data associated to an identifier, and can convert it
+// to an hecs::CommandBuffer to be run on the world.
+
+use crate::*;
+use hecs::Entity;
 use remoc::prelude::*;
 use std::net::Ipv4Addr;
 use tokio::net::{TcpListener, TcpStream};
 use tracing::*;
 
-pub async fn serve(tx: tokio::sync::mpsc::Sender<Event>) {
+pub async fn serve(tx: tokio::sync::mpsc::Sender<Command>) {
     // Going through tokio's mpsc because remoc's channel doesn't provide
     // sync methods, which is needed for the UI code
     info!(
@@ -24,7 +31,7 @@ pub async fn serve(tx: tokio::sync::mpsc::Sender<Event>) {
                 let (conn, _, mut remote_rx): (
                     _,
                     rch::base::Sender<()>,
-                    rch::base::Receiver<Event>,
+                    rch::base::Receiver<Command>,
                 ) = remoc::Connect::io(remoc::Cfg::default(), socket_rx, socket_tx)
                     .await
                     .unwrap();
@@ -33,9 +40,9 @@ pub async fn serve(tx: tokio::sync::mpsc::Sender<Event>) {
 
                 let tx = tx.clone();
                 tokio::spawn(async move {
-                    while let Some(event) = remote_rx.recv().await.unwrap() {
-                        debug!("Received event: {event:?}");
-                        let _ = tx.send(event).await;
+                    while let Some(cmd) = remote_rx.recv().await.unwrap() {
+                        debug!("Received command: {cmd:?}");
+                        let _ = tx.send(cmd).await;
                     }
                 });
             }
@@ -46,7 +53,7 @@ pub async fn serve(tx: tokio::sync::mpsc::Sender<Event>) {
     }
 }
 
-pub async fn connect_client(mut rx: tokio::sync::mpsc::Receiver<Event>) {
+pub async fn connect_client(mut rx: tokio::sync::mpsc::Receiver<Command>) {
     let ip = Ipv4Addr::LOCALHOST;
     let port = DEFAULT_PORT;
     println!("Connecting to {ip}:{port}");
@@ -67,10 +74,46 @@ pub async fn connect_client(mut rx: tokio::sync::mpsc::Receiver<Event>) {
     }
 }
 
+pub struct RecordingStream {
+    pub tx: tokio::sync::mpsc::Sender<Command>,
+}
+
+impl RecordingStream {
+    pub fn new() -> Self {
+        // Spawn a tokio task that connects to the remoc server and forwards the events
+        // from the crossbeam channel. This avoids the overhead of spawning a new task
+        // for each call.
+        let (tx, rx) = tokio::sync::mpsc::channel(32);
+        tokio::spawn(connect_client(rx));
+        Self { tx }
+    }
+
+    pub fn insert_one(&self, id: Entity, component: impl Into<SpawnOrInsert>) {
+        let _ = self
+            .tx
+            .blocking_send(Command::SpawnOrInsert(id, component.into()));
+    }
+
+    pub fn remove_one<T>(&self, id: Entity) {
+        let component = match std::any::type_name::<T>() {
+            "Node" => Remove::Node,
+            "Edge" => Remove::Edge,
+            "State" => Remove::State,
+            "Name" => Remove::Name,
+            "TypeName" => Remove::TypeName,
+            "Properties" => Remove::Properties,
+            "Port" => Remove::Port,
+            "Child" => Remove::Child,
+            _ => panic!("Unsupported component type"),
+        };
+        let _ = self.tx.blocking_send(Command::Remove(id, component));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::*;
+    use crate::Command;
     use test_log::test;
 
     #[test(tokio::test)]
@@ -83,34 +126,13 @@ mod tests {
         let (client_tx, client_rx) = tokio::sync::mpsc::channel(12);
         tokio::spawn(connect_client(client_rx));
 
-        // Send a couple events on client_tx, and compare them with server_rx
-        let event1 = Event::ChangeElementState {
-            element: Element {
-                id: RemoteId(0),
-                name: "name".to_string().into(),
-                type_name: "type".to_string().into(),
-                properties: Default::default(),
-                node: Node,
-            },
-            state: State::Playing,
-        };
-        let event2 = Event::LinkPad {
-            src_pad: Pad {
-                id: RemoteId(1),
-                name: "src".to_string().into(),
-                port: Port::Input,
-            },
-            sink_pad: Pad {
-                id: RemoteId(2),
-                name: "sink".to_string().into(),
-                port: Port::Input,
-            },
-            state: State::Pending,
-        };
-        client_tx.send(event1.clone()).await.unwrap();
-        client_tx.send(event2.clone()).await.unwrap();
+        // Send a couple commands on client_tx, and compare them with server_rx
+        let command1 = Command::SpawnOrInsert(Entity::DANGLING, Node {}.into());
+        let command2 = Command::Remove(Entity::DANGLING, Remove::Edge);
+        client_tx.send(command1.clone()).await.unwrap();
+        client_tx.send(command2.clone()).await.unwrap();
 
-        assert_eq!(server_rx.recv().await.unwrap(), event1);
-        assert_eq!(server_rx.recv().await.unwrap(), event2);
+        assert_eq!(server_rx.recv().await.unwrap(), command1);
+        assert_eq!(server_rx.recv().await.unwrap(), command2);
     }
 }
