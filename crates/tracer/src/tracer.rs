@@ -8,10 +8,11 @@ glib::wrapper! {
 mod imp {
     use crate::EntityExt;
     use glitch_data::{Child, RecordingStream, State};
-    use gst::{glib, subclass::prelude::*};
+    use gst::{glib, prelude::*, subclass::prelude::*};
     use hecs::Entity;
     use log::*;
     use once_cell::sync::Lazy;
+    use std::{net::Ipv4Addr, str::FromStr};
 
     use crate::exts::RecordingStreamExt;
 
@@ -42,6 +43,34 @@ mod imp {
 
     impl ObjectImpl for GlitchTracer {
         fn constructed(&self) {
+            let mut ip = Ipv4Addr::LOCALHOST;
+            let mut port = glitch_data::DEFAULT_PORT;
+            if let Some(params) = self.obj().property::<Option<String>>("params") {
+                let structure = {
+                    let tmp = format!("params,{}", params);
+                    info!("{:?} params: {:?}", self.obj(), tmp);
+                    gst::Structure::from_str(&tmp).unwrap_or_else(|e| {
+                        error!("Invalid params string: {:?}: {e:?}", tmp);
+                        gst::Structure::new_empty("params")
+                    })
+                };
+
+                debug!("params = {}", &structure);
+
+                if let Ok(s) = structure.get::<String>("ip") {
+                    ip = Ipv4Addr::from_str(&s).expect("Invalid IP address");
+                }
+
+                if let Ok(s) = structure.get::<String>("port") {
+                    port = s.parse::<u16>().expect("Invalid port number");
+                } else if let Ok(p) = structure.get::<i32>("port") {
+                    port = p as u16;
+                }
+            };
+
+            debug!("Connecting to {ip}:{port}");
+            self.stream.connect(ip, port);
+
             self.parent_constructed();
             self.register_hook(TracerHook::BinAddPost);
             self.register_hook(TracerHook::ElementAddPad);
