@@ -7,12 +7,13 @@ Features:
 - [x] Use #[derive(Bundle)] to clean up the components
 - [x] Add inspector for elements (name, properties, state, factory name, etc.)
 - [x] Allow selecting pads
+- [x] Add IP and port properties to the tracer
 - [ ] Display the content of pads, live
 - [ ] Display caps
 - [ ] Allow saving and reloading sessions
 - [ ] Add a timeline that allows to revert to a previous state
 - [ ] Allow navigating the graph with the keyboard
-- [ ] Add IP and port properties to the tracer
+- [ ] Allow multiple selection
 
 Bugs and code improvements:
 - [x] Fix nodes margins when zooming
@@ -25,3 +26,4 @@ Bugs and code improvements:
 - [x] Abstract away gstreamer from the communication layer
 - [ ] Relayout shouldn't when translating the view
 - [ ] Store nodes sizes and positions in ctx.memory()
+- [ ] Nested but separate subgraphs should not be layed out together
