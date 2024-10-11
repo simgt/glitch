@@ -27,6 +27,7 @@ gst-base = { package = 'gstreamer-base', version = "0" }
 gst-sys = { package = "gstreamer-sys", version = "0" }
 gst-utils = { package = "gstreamer-utils", version = "0" }
 gst-video = { package = "gstreamer-video", version = "0" }
+gst-rtsp-server = { package = "gstreamer-rtsp-server", version = "0" }
 hecs = { version = "0.10", features = ["macros", "serde", "row-serialize"] }
 log = "0.4"
 petgraph = "0.6"

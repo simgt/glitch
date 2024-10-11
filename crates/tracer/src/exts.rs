@@ -34,11 +34,19 @@ pub trait ValueExt {
 impl ValueExt for glib::Value {
     fn to_string(&self) -> String {
         unsafe {
-            glib::translate::from_glib_full::<_, glib::GString>(g_strdup_value_contents(
-                self.to_glib_none().0,
-            ))
+            let stash = self.to_glib_none();
+            let ptr = stash.0;
+            if ptr.is_null() {
+                error!("Failed to get string from value");
+                String::new()
+            } else {
+                println!("ptr: {:?}", ptr);
+                println!("contents: {:?}", g_strdup_value_contents(ptr));
+                println!("done");
+                glib::translate::from_glib_full::<_, glib::GString>(g_strdup_value_contents(ptr))
+                    .to_string()
+            }
         }
-        .to_string()
     }
 }
 
@@ -74,10 +82,25 @@ impl RecordingStreamExt for RecordingStream {
         let properties: Properties = element
             .list_properties()
             .iter()
-            .map(|p| {
-                let name = p.name().to_string();
-                let value = format!("{:?}", element.property_value(&name));
-                (name, value)
+            .filter_map(|pspec| {
+                let name = pspec.name().to_string();
+                // FIXME the call to property_value() is enough to crash when using rtsp
+                // Solution might be here: file:///Users/simon/Dev/glitch/target/doc/src/glib/object.rs.html#2418
+                unsafe {
+                    use gst::glib::translate::ToGlibPtrMut;
+                    let mut value = glib::Value::from_type_unchecked(pspec.value_type());
+                    dbg!(element.as_object_ref().to_glib_none().0);
+                    dbg!(pspec.name().as_ptr());
+                    dbg!(value.to_glib_none_mut().0);
+                    // glib::gobject_ffi::g_object_get_property(
+                    //     element.as_object_ref().to_glib_none().0,
+                    //     pspec.name().as_ptr() as *const _,
+                    //     value.to_glib_none_mut().0,
+                    // );
+                }
+                //let value = format!("{:?}", element.property_value(&name));
+                let value = "test".to_owned();
+                Some((name, value))
             })
             .collect::<HashMap<String, String>>()
             .into();

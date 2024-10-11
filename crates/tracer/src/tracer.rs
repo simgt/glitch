@@ -6,6 +6,7 @@ glib::wrapper! {
 }
 
 mod imp {
+    use crate::exts::RecordingStreamExt;
     use crate::EntityExt;
     use glitch_common::{Child, RecordingStream, State};
     use gst::{glib, prelude::*, subclass::prelude::*};
@@ -13,8 +14,6 @@ mod imp {
     use log::*;
     use once_cell::sync::Lazy;
     use std::{net::Ipv4Addr, str::FromStr};
-
-    use crate::exts::RecordingStreamExt;
 
     static _CAT: Lazy<gst::DebugCategory> = Lazy::new(|| {
         gst::DebugCategory::new(
@@ -40,6 +39,24 @@ mod imp {
             }
         }
     }
+
+    static RTSP_SERVER: Lazy<gst_rtsp_server::glib::SourceId> = Lazy::new(|| {
+        use gst_rtsp_server::prelude::*;
+        println!("Starting RTSP server...");
+        let server = gst_rtsp_server::RTSPServer::new();
+        let mounts = server.mount_points().expect("Failed to get mount points");
+        let factory = gst_rtsp_server::RTSPMediaFactory::new();
+        factory
+            .set_launch("( videotestsrc ! videoconvert ! x264enc ! rtph264pay name=pay0 pt=96 )");
+        factory.set_shared(true);
+        mounts.add_factory("/test", factory);
+        let id = server.attach(None).expect("Failed to attach server");
+        println!(
+            "Server started at location=rtsp://127.0.0.1:{}/test",
+            server.bound_port()
+        );
+        id
+    });
 
     impl ObjectImpl for GlitchTracer {
         fn constructed(&self) {
@@ -71,11 +88,14 @@ mod imp {
             debug!("Connecting to {ip}:{port}");
             self.stream.connect(ip, port);
 
+            // Start the RTSP server
+            println!("rtsp server source id = {:?}", *RTSP_SERVER);
+
             self.parent_constructed();
             self.register_hook(TracerHook::BinAddPost);
             self.register_hook(TracerHook::ElementAddPad);
             self.register_hook(TracerHook::ElementChangeStatePost);
-            self.register_hook(TracerHook::ElementNew);
+            self.register_hook(TracerHook::ElementNew); // FIXME GStreamer-CRITICAL **: 19:00:22.618: structure_serialize: assertion 'structure != NULL' failed
             self.register_hook(TracerHook::PadLinkPost);
             self.register_hook(TracerHook::PadLinkPre);
         }
