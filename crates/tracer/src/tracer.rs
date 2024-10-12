@@ -7,7 +7,7 @@ glib::wrapper! {
 
 mod imp {
     use crate::EntityExt;
-    use glitch_data::{Child, RecordingStream, State};
+    use glitch_common::{Child, RecordingStream, State};
     use gst::{glib, prelude::*, subclass::prelude::*};
     use hecs::Entity;
     use log::*;
@@ -25,7 +25,7 @@ mod imp {
     });
 
     pub struct GlitchTracer {
-        pub stream: glitch_data::RecordingStream,
+        pub stream: glitch_common::RecordingStream,
     }
 
     #[glib::object_subclass]
@@ -44,7 +44,7 @@ mod imp {
     impl ObjectImpl for GlitchTracer {
         fn constructed(&self) {
             let mut ip = Ipv4Addr::LOCALHOST;
-            let mut port = glitch_data::DEFAULT_PORT;
+            let mut port = glitch_common::DEFAULT_PORT;
             if let Some(params) = self.obj().property::<Option<String>>("params") {
                 let structure = {
                     let tmp = format!("params,{}", params);

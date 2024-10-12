@@ -1,4 +1,4 @@
-use crate::components::*;
+use crate::comps::*;
 use hecs::serialize::row::*;
 
 pub struct SerContext;

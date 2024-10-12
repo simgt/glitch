@@ -1,5 +1,5 @@
 commands:
   app: |
-    cargo watch -i '{crates/draw,*.md}' -x 'run -F reload'
+    cargo watch -i '{crates/ui,*.md}' -x 'run -F reload'
   deps: |
     cargo watch -i crates/app -x build

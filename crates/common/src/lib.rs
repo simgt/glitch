@@ -1,15 +1,14 @@
-pub mod comm;
-pub mod components;
+pub mod client;
+pub mod comps;
 pub mod ser;
 
-use std::collections::HashMap;
-
-pub use comm::*;
-pub use components::*;
+pub use client::RecordingStream;
+pub use comps::*;
 
 use enum_dispatch::enum_dispatch;
 use hecs::Entity;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 pub const DEFAULT_PORT: u16 = 9870;
 

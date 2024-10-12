@@ -1,5 +1,5 @@
 use glib::{gobject_ffi::g_strdup_value_contents, translate::ToGlibPtr};
-use glitch_data::{components::*, RecordingStream};
+use glitch_common::{comps::*, RecordingStream};
 use gst::{prelude::*, Element, Pad};
 use hecs::Entity;
 use log::error;

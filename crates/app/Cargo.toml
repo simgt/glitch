@@ -6,20 +6,24 @@ repository.workspace = true
 authors.workspace = true
 description.workspace = true
 
+[features]
+reload = ["dep:hot-lib-reloader"]
+
 [dependencies]
 anyhow.workspace = true
 clap = { version = "4", features = ["derive"] }
 eframe.workspace = true
 egui.workspace = true
 glib.workspace = true
-glitch-data = { path = "../data" }
-glitch-draw = { path = "../draw" }
+glitch-common = { path = "../common" }
+glitch-ui = { path = "../ui" }
 hecs.workspace = true
 hot-lib-reloader = { version = "^0.7", optional = true }
 log.workspace = true
+remoc.workspace = true
 tokio.workspace = true
 tracing-subscriber.workspace = true
 tracing.workspace = true
 
-[features]
-reload = ["dep:hot-lib-reloader"]
+[dev-dependencies]
+test-log.workspace = true
