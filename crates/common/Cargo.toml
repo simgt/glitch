@@ -1,5 +1,5 @@
 [package]
-name = "glitch-data"
+name = "glitch-common"
 version.workspace = true
 edition.workspace = true
 repository.workspace = true
@@ -12,7 +12,7 @@ gstreamer = ["gst", "gst-sys", "glib"]
 [dependencies]
 derive_more.workspace = true
 egui.workspace = true
-enum_dispatch = "0.3.13"
+enum_dispatch.workspace = true
 glib = { workspace = true, optional = true }
 gst = { workspace = true, optional = true }
 gst-sys = { workspace = true, optional = true }
@@ -24,4 +24,4 @@ tokio.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
-test-log = { version = "0.2", features = ["trace"] }
+test-log.workspace = true

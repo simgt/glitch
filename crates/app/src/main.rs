@@ -1,27 +1,30 @@
-use std::collections::HashMap;
-
 use anyhow::Result;
 use clap::Parser;
 use eframe::egui;
-use glitch_data::*;
+use glitch_common::*;
 #[cfg(not(feature = "reload"))]
-use glitch_draw::*;
+use glitch_ui::*;
 use hecs::Entity;
 #[cfg(feature = "reload")]
 use hot_lib::*;
+use remoc::prelude::*;
+use std::collections::HashMap;
+use std::net::Ipv4Addr;
+use tokio::net::TcpListener;
 use tracing::debug;
+use tracing::{error, info};
 use tracing_subscriber::{prelude::*, EnvFilter};
 
 #[cfg(feature = "reload")]
 #[hot_lib_reloader::hot_module(
-    dylib = "glitch_draw",
+    dylib = "glitch_ui",
     lib_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/debug")
 )]
 mod hot_lib {
     use eframe::egui;
-    pub use glitch_draw::DrawState;
+    pub use glitch_ui::UiState;
 
-    hot_functions_from_file!("crates/draw/src/draw.rs");
+    hot_functions_from_file!("crates/ui/src/ui.rs");
 
     #[lib_change_subscription]
     pub fn subscribe() -> hot_lib_reloader::LibReloadObserver {}
@@ -37,7 +40,7 @@ pub struct App {
     #[allow(dead_code)]
     rt: tokio::runtime::Runtime,
     rx: tokio::sync::mpsc::Receiver<Command>,
-    draw_state: DrawState,
+    ui_state: UiState,
 }
 
 impl App {
@@ -67,7 +70,7 @@ impl App {
             remote_entities: HashMap::default(),
             rt,
             rx,
-            draw_state: DrawState::default(),
+            ui_state: UiState::default(),
         }
     }
 
@@ -86,7 +89,49 @@ impl App {
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         self.recv_commands(ctx);
-        draw(&mut self.draw_state, &mut self.world, ctx, frame);
+        show_ui(&mut self.ui_state, &mut self.world, ctx, frame);
+    }
+}
+
+pub async fn serve(tx: tokio::sync::mpsc::Sender<Command>) {
+    // Going through tokio's mpsc because remoc's channel doesn't provide
+    // sync methods, which is needed for the UI code
+    info!(
+        "Binding server on {ip}:{port}",
+        ip = Ipv4Addr::LOCALHOST,
+        port = DEFAULT_PORT
+    );
+    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, DEFAULT_PORT))
+        .await
+        .unwrap();
+    debug!("Socket bound, waiting for connection");
+
+    loop {
+        match listener.accept().await {
+            Ok((socket, _)) => {
+                let (socket_rx, socket_tx) = socket.into_split();
+                let (conn, _, mut remote_rx): (
+                    _,
+                    rch::base::Sender<()>,
+                    rch::base::Receiver<Command>,
+                ) = remoc::Connect::io(remoc::Cfg::default(), socket_rx, socket_tx)
+                    .await
+                    .unwrap();
+                tokio::spawn(conn);
+                debug!("Remoc connection established, waiting for events");
+
+                let tx = tx.clone();
+                tokio::spawn(async move {
+                    while let Some(cmd) = remote_rx.recv().await.unwrap() {
+                        debug!("Received command: {cmd:?}");
+                        let _ = tx.send(cmd).await;
+                    }
+                });
+            }
+            Err(e) => {
+                error!("Error accepting connection: {e}");
+            }
+        }
     }
 }
 
@@ -127,4 +172,36 @@ fn main() -> Result<(), eframe::Error> {
             Ok(Box::new(App::new(cc, args)))
         }),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Command;
+    use glitch_common::client::connect_client;
+    use test_log::test;
+
+    #[test(tokio::test)]
+    async fn test_comm() {
+        info!("Starting server and client");
+
+        let ip = Ipv4Addr::LOCALHOST;
+        let port = DEFAULT_PORT;
+
+        let (server_tx, mut server_rx) = tokio::sync::mpsc::channel(12);
+        tokio::spawn(serve(server_tx));
+
+        let (client_tx, _) = tokio::sync::broadcast::channel(12);
+        let client_rx = client_tx.subscribe();
+        tokio::spawn(connect_client(ip, port, client_rx));
+
+        // Send a couple commands on client_tx, and compare them with server_rx
+        let command1 = Command::SpawnOrInsert(Entity::DANGLING, Node {}.into());
+        let command2 = Command::Remove(Entity::DANGLING, Remove::Edge);
+        client_tx.send(command1.clone()).unwrap();
+        client_tx.send(command2.clone()).unwrap();
+
+        assert_eq!(server_rx.recv().await.unwrap(), command1);
+        assert_eq!(server_rx.recv().await.unwrap(), command2);
+    }
 }

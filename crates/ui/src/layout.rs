@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use egui::{Pos2, Vec2};
-use glitch_data::components::*;
+use glitch_common::comps::*;
 use petgraph::algo::toposort;
 use petgraph::graphmap::DiGraphMap;
 use petgraph::prelude::*;

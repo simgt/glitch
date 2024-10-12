@@ -1,20 +1,20 @@
 use crate::{DAGLayout, GraphStyle, PanZoomArea, Zoom};
 use egui::{self, Modifiers, Pos2, Rect, Vec2};
-use glitch_data::{components::*, ser};
+use glitch_common::{comps::*, ser};
 use log::*;
 use std::{collections::HashSet, ops::Deref};
 
 /// FIXME We can probably put all this in ctx.memory()
 #[derive(Default)]
-pub struct DrawState {
+pub struct UiState {
     size_tracker: hecs::ChangeTracker<Size>,
     topology_tracker: hecs::ChangeTracker<Child>,
     selected: Option<hecs::Entity>,
 }
 
 #[no_mangle]
-pub fn draw(
-    state: &mut DrawState,
+pub fn show_ui(
+    state: &mut UiState,
     world: &mut hecs::World,
     ctx: &egui::Context,
     _frame: &mut eframe::Frame,
@@ -102,7 +102,7 @@ pub fn draw(
 
                 // Draw the graphs and update the selected entity if needed
                 state.selected = roots.into_iter().fold(state.selected, |selected, root| {
-                    draw_node(ui, world, root, zoom, state.selected).or(selected)
+                    show_node(ui, world, root, zoom, state.selected).or(selected)
                 });
 
                 if ui.interact_bg(egui::Sense::click()).clicked() {
@@ -111,7 +111,7 @@ pub fn draw(
             });
 
             #[cfg(debug_assertions)]
-            draw_debug_window(ctx, world);
+            show_debug_window(ctx, world);
         });
 
     egui::SidePanel::right("inspector")
@@ -187,7 +187,7 @@ pub fn draw(
 }
 
 #[cfg(debug_assertions)]
-fn draw_debug_window(ctx: &egui::Context, world: &mut hecs::World) {
+fn show_debug_window(ctx: &egui::Context, world: &mut hecs::World) {
     egui::Window::new("Debug")
         .default_width(200.0)
         .default_open(false)
@@ -263,7 +263,7 @@ fn draw_debug_window(ctx: &egui::Context, world: &mut hecs::World) {
         });
 }
 
-fn draw_node(
+fn show_node(
     ui: &mut egui::Ui,
     world: &mut hecs::World,
     entity: hecs::Entity,
@@ -398,7 +398,7 @@ fn draw_node(
                         .iter()
                         .cloned()
                         .fold(proposed_selection, |selected, child| {
-                            draw_node(ui, world, child, zoom, current_selection).or(selected)
+                            show_node(ui, world, child, zoom, current_selection).or(selected)
                         });
 
                 // Draw the links
@@ -450,7 +450,7 @@ fn draw_node(
     prepared_frame.paint(&child_ui);
 
     // Draw the ports
-    proposed_selection = draw_ports(
+    proposed_selection = show_ports(
         &mut child_ui,
         world,
         entity,
@@ -461,7 +461,7 @@ fn draw_node(
     )
     .or(proposed_selection);
 
-    proposed_selection = draw_ports(
+    proposed_selection = show_ports(
         &mut child_ui,
         world,
         entity,
@@ -475,7 +475,7 @@ fn draw_node(
     proposed_selection
 }
 
-fn draw_ports(
+fn show_ports(
     ui: &mut egui::Ui,
     world: &mut hecs::World,
     parent: hecs::Entity,

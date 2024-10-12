@@ -1,5 +1,5 @@
 [package]
-name = "glitch-draw"
+name = "glitch-ui"
 version.workspace = true
 edition.workspace = true
 repository.workspace = true
@@ -14,7 +14,7 @@ egui.workspace = true
 egui_extras.workspace = true
 epaint.workspace = true
 glib.workspace = true
-glitch-data = { path = "../data" }
+glitch-common = { path = "../common" }
 gst-app.workspace = true
 gst-audio.workspace = true
 gst-base.workspace = true
