@@ -1,14 +1,16 @@
 use crate::{DAGLayout, GraphStyle, PanZoomArea, Zoom};
+use anyhow::Context;
 use egui::{self, Modifiers, Pos2, Rect, Vec2};
 use glitch_common::{comps::*, ser};
 use log::*;
-use std::{collections::HashSet, ops::Deref};
+use std::{collections::HashSet, io::Read, ops::Deref};
 
 /// FIXME We can probably put all this in ctx.memory()
 #[derive(Default)]
 pub struct UiState {
     size_tracker: hecs::ChangeTracker<Size>,
-    topology_tracker: hecs::ChangeTracker<Child>,
+    tree_change_tracker: hecs::ChangeTracker<Child>,
+    graph_change_tracker: hecs::ChangeTracker<Edge>,
     selected: Option<hecs::Entity>,
 }
 
@@ -19,14 +21,91 @@ pub fn show_ui(
     ctx: &egui::Context,
     _frame: &mut eframe::Frame,
 ) {
+    // Add a dummy size for all the nodes that don't have one yet
+    // to bootstrap the layout: the layout algorithm needs a size for each
+    // node to compute a position and display function needs a position for
+    // rawing and computing a size.
     let mut buffer = hecs::CommandBuffer::new();
     for (entity, _) in world.query::<&Node>().without::<&Size>().iter() {
-        buffer.insert_one(entity, Size(Vec2::ZERO));
+        buffer.insert_one(entity, Size(Vec2::new(20.0, 10.0)));
     }
     buffer.run_on(world);
 
     let organise_shortcut = egui::KeyboardShortcut::new(Modifiers::COMMAND, egui::Key::R);
-    let reorganise = ctx.input_mut(|i| i.consume_shortcut(&organise_shortcut));
+    let mut reorganise = ctx.input_mut(|i| i.consume_shortcut(&organise_shortcut));
+
+    egui::TopBottomPanel::top("top_panel")
+        .frame(egui::Frame::default().inner_margin(egui::Margin {
+            left: 76.0,
+            top: 6.0,
+            bottom: 6.0,
+            ..Default::default()
+        }))
+        .show(ctx, |ui| {
+            egui::menu::bar(ui, |ui| {
+                let now = chrono::Local::now();
+
+                ui.menu_button("File", |ui| {
+                    let file_name = format!("glitch {}.ron", now.format("%Y-%m-%d %H.%M"));
+                    let dialog = rfd::FileDialog::new()
+                        .set_file_name(&file_name)
+                        .add_filter("Glitch Checkpoint Files", &["ron"]);
+
+                    if ui.button("Open...").clicked() {
+                        if let Some(path) = dialog.clone().pick_file() {
+                            info!("Loading world from {path:?}");
+                            let mut bytes = Vec::new();
+                            let mut deserializer = std::fs::File::open(path)
+                                .context("Failed to open file")
+                                .and_then(|mut file| {
+                                    file.read_to_end(&mut bytes).context("Failed to read file")
+                                })
+                                .and_then(|_| {
+                                    ron::de::Deserializer::from_bytes(&bytes)
+                                        .context("Failed to deserialize")
+                                })
+                                .unwrap();
+                            *world = hecs::serialize::row::deserialize(
+                                &mut ser::SerContext,
+                                &mut deserializer,
+                            )
+                            .context("Failed to deserialize world")
+                            .unwrap();
+
+                            state.size_tracker = Default::default();
+                            state.tree_change_tracker = Default::default();
+                            state.graph_change_tracker = Default::default();
+
+                            // FIXME this shouldn't be necessary as the trackers should detect the changes
+                            reorganise = true;
+                        }
+                    }
+
+                    if ui.button("Save as...").clicked() {
+                        if let Some(path) = dialog.save_file() {
+                            info!("Saving world to {path:?}");
+                            let mut file = std::fs::File::create(path).unwrap();
+                            let mut serializer = ron::Serializer::with_options(
+                                &mut file,
+                                Some(ron::ser::PrettyConfig::default()),
+                                Default::default(),
+                            )
+                            .unwrap();
+                            hecs::serialize::row::serialize(
+                                &world,
+                                &mut ser::SerContext,
+                                &mut serializer,
+                            )
+                            .unwrap();
+                        }
+                    }
+
+                    if ui.button("Clear").clicked() {
+                        world.clear();
+                    }
+                })
+            });
+        });
 
     egui::CentralPanel::default()
         .frame(egui::containers::Frame {
@@ -55,11 +134,19 @@ pub fn show_ui(
                     .collect::<HashSet<_>>();
 
                 let topology_changed = {
-                    // FIXME should also track links
-                    let mut changes = state.topology_tracker.track(world);
-                    changes.changed().count() > 0
-                        || changes.added().count() > 0
-                        || changes.removed().count() > 0
+                    let tree_changes = {
+                        let mut changes = state.tree_change_tracker.track(world);
+                        changes.changed().count() > 0
+                            || changes.added().count() > 0
+                            || changes.removed().count() > 0
+                    };
+                    let graph_changes = {
+                        let mut changes = state.graph_change_tracker.track(world);
+                        changes.changed().count() > 0
+                            || changes.added().count() > 0
+                            || changes.removed().count() > 0
+                    };
+                    tree_changes || graph_changes
                 };
 
                 if topology_changed || reorganise {
@@ -80,8 +167,9 @@ pub fn show_ui(
                     changes.changed().count() > 0 || changes.added().count() > 0
                 };
 
-                if size_changed {
+                if size_changed || reorganise {
                     let mut buffer = hecs::CommandBuffer::new();
+
                     for &entity in parent_nodes.iter() {
                         if let Err(e) = layout.update_positions(world, entity, &mut buffer) {
                             error!("Error during node positioning: {e}");
@@ -92,9 +180,10 @@ pub fn show_ui(
                     let margin = node_margin.sum();
                     let mut y = 0.0;
                     for root in roots.iter().cloned() {
-                        let size = world.get::<&Size>(root).unwrap().0;
-                        buffer.insert_one(root, Pos2::new(0.0, y));
-                        y += size.y + 2.0 * margin.y;
+                        if let Ok(size) = world.get::<&Size>(root) {
+                            buffer.insert_one(root, Pos2::new(0.0, y));
+                            y += size.0.y + 2.0 * margin.y;
+                        }
                     }
 
                     buffer.run_on(world);
@@ -240,22 +329,6 @@ fn show_debug_window(ctx: &egui::Context, world: &mut hecs::World) {
                     ctx.set_debug_on_hover(debug_on_hover);
                     ui.end_row();
                 });
-
-            if ui.button("Reset").clicked() {
-                world.clear();
-            }
-
-            if ui.button("Save").clicked() {
-                let mut file = std::fs::File::create("checkpoint.ron").unwrap();
-                let mut serializer = ron::Serializer::with_options(
-                    &mut file,
-                    Some(ron::ser::PrettyConfig::default()),
-                    Default::default(),
-                )
-                .unwrap();
-                hecs::serialize::row::serialize(&world, &mut ser::SerContext, &mut serializer)
-                    .unwrap();
-            }
 
             egui::ScrollArea::vertical().show(ui, |ui| {
                 ctx.settings_ui(ui);
