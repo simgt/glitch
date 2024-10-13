@@ -5,13 +5,27 @@ use glitch_common::{comps::*, ser};
 use log::*;
 use std::{collections::HashSet, io::Read, ops::Deref};
 
-/// FIXME We can probably put all this in ctx.memory()
-#[derive(Default)]
+/// FIXME We can probably put this in ctx.memory()
 pub struct UiState {
+    show_left_panel: bool,
+    show_right_panel: bool,
     size_tracker: hecs::ChangeTracker<Size>,
     tree_change_tracker: hecs::ChangeTracker<Child>,
     graph_change_tracker: hecs::ChangeTracker<Edge>,
-    selected: Option<hecs::Entity>,
+    current_selection: Option<hecs::Entity>,
+}
+
+impl Default for UiState {
+    fn default() -> Self {
+        Self {
+            show_left_panel: true,
+            show_right_panel: true,
+            size_tracker: Default::default(),
+            tree_change_tracker: Default::default(),
+            graph_change_tracker: Default::default(),
+            current_selection: Default::default(),
+        }
+    }
 }
 
 #[no_mangle]
@@ -103,9 +117,66 @@ pub fn show_ui(
                     if ui.button("Clear").clicked() {
                         world.clear();
                     }
-                })
+                });
+
+                ui.menu_button("View", |ui| {
+                    if ui
+                        .button(if state.show_left_panel {
+                            "Hide Left Panel"
+                        } else {
+                            "Show Left Panel"
+                        })
+                        .clicked()
+                    {
+                        state.show_left_panel = !state.show_left_panel;
+                    }
+                    if ui
+                        .button(if state.show_right_panel {
+                            "Hide Right Panel"
+                        } else {
+                            "Show Right Panel"
+                        })
+                        .clicked()
+                    {
+                        state.show_right_panel = !state.show_right_panel;
+                    }
+                });
             });
         });
+
+    let side_panel_frame = egui::Frame {
+        fill: ctx.style().visuals.window_fill.gamma_multiply(0.95),
+        inner_margin: egui::Margin::symmetric(10.0, 10.0),
+        ..Default::default()
+    };
+
+    if state.show_left_panel && world.query::<&Node>().iter().count() > 0 {
+        egui::SidePanel::left("left_panel")
+            .frame(side_panel_frame)
+            .show(ctx, |ui| {
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    let mut nodes = Vec::new();
+                    for (entity, _) in world.query::<&Node>().iter() {
+                        if world.get::<&Child>(entity).is_err() {
+                            nodes.push(entity);
+                        }
+                    }
+
+                    let mut selected_entities = Vec::new();
+                    if let Some(selected) = state.current_selection {
+                        let mut current = Some(selected);
+                        while let Some(entity) = current {
+                            selected_entities.push(entity);
+                            current = world.get::<&Child>(entity).ok().map(|c| c.parent);
+                        }
+                    }
+
+                    for node in nodes {
+                        show_node_tree(ui, world, node, &selected_entities, 0);
+                    }
+                });
+            });
+    }
 
     egui::CentralPanel::default()
         .frame(egui::containers::Frame {
@@ -190,12 +261,15 @@ pub fn show_ui(
                 }
 
                 // Draw the graphs and update the selected entity if needed
-                state.selected = roots.into_iter().fold(state.selected, |selected, root| {
-                    show_node(ui, world, root, zoom, state.selected).or(selected)
-                });
+                state.current_selection =
+                    roots
+                        .into_iter()
+                        .fold(state.current_selection, |selected, root| {
+                            show_node(ui, world, root, zoom, state.current_selection).or(selected)
+                        });
 
                 if ui.interact_bg(egui::Sense::click()).clicked() {
-                    state.selected = None;
+                    state.current_selection = None;
                 }
             });
 
@@ -203,70 +277,68 @@ pub fn show_ui(
             show_debug_window(ctx, world);
         });
 
-    egui::SidePanel::right("inspector")
-        .resizable(false)
-        .min_width(200.0)
-        .frame(egui::containers::Frame {
-            fill: ctx.style().visuals.window_fill.gamma_multiply(0.95),
-            inner_margin: egui::Margin::symmetric(10.0, 20.0),
-            ..Default::default()
-        })
-        .show_animated(ctx, state.selected.is_some(), |ui| {
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                let selected = state.selected.unwrap();
-                egui::Grid::new("info")
-                    .striped(true)
-                    .spacing(egui::vec2(8.0, 8.0))
-                    .show(ui, |ui| {
-                        #[cfg(debug_assertions)]
-                        {
-                            ui.label("Entity");
-                            ui.label(format!("{:?}", selected));
-                            ui.end_row();
-                        }
-
-                        if let Ok(name) = world.get::<&Name>(selected) {
-                            ui.label("Name");
-                            ui.label(name.0.clone());
-                            ui.end_row();
-                        }
-
-                        if let Ok(typename) = world.get::<&TypeName>(selected) {
-                            ui.label("Type");
-                            ui.label(typename.0.clone());
-                            ui.end_row();
-                        }
-
-                        if let Ok(state) = world.get::<&State>(selected) {
-                            ui.label("State");
-                            ui.label(format!("{state:?}"));
-                            ui.end_row();
-                        }
-                    });
-
-                if let Ok(properties) = world.get::<&Properties>(selected) {
-                    ui.add_space(10.0);
-                    egui::ScrollArea::horizontal()
-                        .max_width(200.0)
+    if state.show_right_panel {
+        egui::SidePanel::right("right_panel")
+            .resizable(false)
+            .min_width(200.0)
+            .frame(side_panel_frame)
+            .show_animated(ctx, state.current_selection.is_some(), |ui| {
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    let selected = state.current_selection.unwrap();
+                    egui::Grid::new("info")
+                        .striped(true)
+                        .spacing(egui::vec2(8.0, 8.0))
                         .show(ui, |ui| {
-                            egui::CollapsingHeader::new("Properties")
-                                .default_open(true)
-                                .show_unindented(ui, |ui| {
-                                    egui::Grid::new("properties")
-                                        .striped(true)
-                                        .spacing(egui::vec2(8.0, 8.0))
-                                        .show(ui, |ui| {
-                                            for (key, value) in properties.0.iter() {
-                                                ui.label(key);
-                                                ui.label(value);
-                                                ui.end_row();
-                                            }
-                                        });
-                                });
+                            #[cfg(debug_assertions)]
+                            {
+                                ui.label("Entity");
+                                ui.label(format!("{:?}", selected));
+                                ui.end_row();
+                            }
+
+                            if let Ok(name) = world.get::<&Name>(selected) {
+                                ui.label("Name");
+                                ui.label(name.0.clone());
+                                ui.end_row();
+                            }
+
+                            if let Ok(typename) = world.get::<&TypeName>(selected) {
+                                ui.label("Type");
+                                ui.label(typename.0.clone());
+                                ui.end_row();
+                            }
+
+                            if let Ok(state) = world.get::<&State>(selected) {
+                                ui.label("State");
+                                ui.label(format!("{state:?}"));
+                                ui.end_row();
+                            }
                         });
-                }
+
+                    if let Ok(properties) = world.get::<&Properties>(selected) {
+                        ui.add_space(10.0);
+                        egui::ScrollArea::horizontal()
+                            .max_width(200.0)
+                            .show(ui, |ui| {
+                                egui::CollapsingHeader::new("Properties")
+                                    .default_open(true)
+                                    .show_unindented(ui, |ui| {
+                                        egui::Grid::new("properties")
+                                            .striped(true)
+                                            .spacing(egui::vec2(8.0, 8.0))
+                                            .show(ui, |ui| {
+                                                for (key, value) in properties.0.iter() {
+                                                    ui.label(key);
+                                                    ui.label(value);
+                                                    ui.end_row();
+                                                }
+                                            });
+                                    });
+                            });
+                    }
+                });
             });
-        });
+    }
 
     if reorganise {
         ctx.memory_mut(|mem| mem.reset_areas());
@@ -611,4 +683,46 @@ fn compute_bezier_points(from: Pos2, to: Pos2, curvature: f32) -> [Pos2; 4] {
     let control1 = Pos2::new(from.x + control_x_offset, from.y);
     let control2 = Pos2::new(to.x - control_x_offset, to.y);
     [from, control1, control2, to]
+}
+
+fn show_node_tree(
+    ui: &mut egui::Ui,
+    world: &hecs::World,
+    entity: hecs::Entity,
+    selected_entities: &[hecs::Entity],
+    depth: usize,
+) {
+    let name = world
+        .get::<&Name>(entity)
+        .map(|n| n.0.clone())
+        .unwrap_or_default();
+
+    let children: Vec<_> = world
+        .query::<&Child>()
+        .iter()
+        .filter_map(|(e, c)| if c.parent == entity { Some(e) } else { None })
+        .collect();
+
+    let selected = selected_entities.first() == Some(&entity);
+    let open = selected_entities.contains(&entity);
+    let text_color = if selected {
+        ui.visuals().strong_text_color()
+    } else {
+        ui.visuals().text_color()
+    };
+
+    if children.is_empty() {
+        ui.colored_label(text_color, name);
+    } else {
+        // FIXME open the header if any of its descendants is selected
+        egui::CollapsingHeader::new(egui::RichText::new(name).color(text_color))
+            .id_source(entity)
+            .default_open(depth < 3)
+            .open(if open { Some(true) } else { None })
+            .show(ui, |ui| {
+                for child in children {
+                    show_node_tree(ui, world, child, selected_entities, depth + 1);
+                }
+            });
+    }
 }
