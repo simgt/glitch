@@ -8,6 +8,7 @@ description.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+chrono.workspace = true
 crossbeam.workspace = true
 eframe.workspace = true
 egui.workspace = true
@@ -27,10 +28,11 @@ image = { version = "0.25", default-features = false, features = ["png"] }
 log.workspace = true
 petgraph.workspace = true
 remoc.workspace = true
-tempfile = "3.8"
-tracing.workspace = true
+rfd = "0.13"
 ron = "0.8"
 serde = { workspace = true, features = ["derive"] }
+tempfile = "3.8"
+tracing.workspace = true
 
 [lib]
 # We should add dylib here to allow for hot reloading, but we get a compiler

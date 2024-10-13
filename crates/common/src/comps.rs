@@ -5,8 +5,8 @@ use std::collections::HashMap;
 use tracing::error;
 
 // It is necessary to put the component definitions in a separate crate
-// to avoid changing the type identities when the draw crate is being
-// recompiled. Otherwise we have no way to query the world.
+// to avoid changing the type identities when the ui crate is being
+// rebuilt. Otherwise we have no way to query the world after a reload.
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct Node;
