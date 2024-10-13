@@ -6,7 +6,7 @@ resolver = "2"
 version = "0.1.0"
 authors = ["Simon Guillot <simon@eigenscape.com>"]
 description = "A gstreamer pipeline viewer and debugger"
-repository = "https://github.com/eigenscape/glitch"
+repository = "https://github.com/simgt/glitch"
 edition = "2021"
 
 [workspace.dependencies]
