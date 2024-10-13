@@ -33,6 +33,7 @@ ron = "0.8"
 serde = { workspace = true, features = ["derive"] }
 tempfile = "3.8"
 tracing.workspace = true
+egui_table = "0"
 
 [lib]
 # We should add dylib here to allow for hot reloading, but we get a compiler

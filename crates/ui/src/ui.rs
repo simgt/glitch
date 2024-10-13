@@ -1,6 +1,7 @@
 use crate::{DAGLayout, GraphStyle, PanZoomArea, Zoom};
 use anyhow::Context;
 use egui::{self, Modifiers, Pos2, Rect, Vec2};
+use egui_extras::{Column, TableBuilder};
 use glitch_common::{comps::*, ser};
 use log::*;
 use std::{collections::HashSet, io::Read, ops::Deref};
@@ -279,64 +280,91 @@ pub fn show_ui(
 
     if state.show_right_panel {
         egui::SidePanel::right("right_panel")
-            .resizable(false)
-            .min_width(200.0)
+            .resizable(true)
+            .min_width(300.0)
             .frame(side_panel_frame)
             .show_animated(ctx, state.current_selection.is_some(), |ui| {
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    let selected = state.current_selection.unwrap();
-                    egui::Grid::new("info")
-                        .striped(true)
-                        .spacing(egui::vec2(8.0, 8.0))
-                        .show(ui, |ui| {
-                            #[cfg(debug_assertions)]
-                            {
-                                ui.label("Entity");
-                                ui.label(format!("{:?}", selected));
-                                ui.end_row();
-                            }
-
-                            if let Ok(name) = world.get::<&Name>(selected) {
-                                ui.label("Name");
-                                ui.label(name.0.clone());
-                                ui.end_row();
-                            }
-
-                            if let Ok(typename) = world.get::<&TypeName>(selected) {
-                                ui.label("Type");
-                                ui.label(typename.0.clone());
-                                ui.end_row();
-                            }
-
-                            if let Ok(state) = world.get::<&State>(selected) {
-                                ui.label("State");
-                                ui.label(format!("{state:?}"));
-                                ui.end_row();
-                            }
-                        });
-
-                    if let Ok(properties) = world.get::<&Properties>(selected) {
-                        ui.add_space(10.0);
-                        egui::ScrollArea::horizontal()
-                            .max_width(200.0)
-                            .show(ui, |ui| {
-                                egui::CollapsingHeader::new("Properties")
-                                    .default_open(true)
-                                    .show_unindented(ui, |ui| {
-                                        egui::Grid::new("properties")
-                                            .striped(true)
-                                            .spacing(egui::vec2(8.0, 8.0))
-                                            .show(ui, |ui| {
-                                                for (key, value) in properties.0.iter() {
-                                                    ui.label(key);
-                                                    ui.label(value);
-                                                    ui.end_row();
-                                                }
-                                            });
-                                    });
+                let selected = state.current_selection.unwrap();
+                TableBuilder::new(ui)
+                    .column(Column::auto().at_least(100.0))
+                    .column(Column::remainder())
+                    .body(|mut body| {
+                        #[cfg(debug_assertions)]
+                        {
+                            body.row(18.0, |mut row| {
+                                row.col(|ui| {
+                                    ui.label("Entity");
+                                });
+                                row.col(|ui| {
+                                    ui.label(format!("{:?}", selected));
+                                });
                             });
-                    }
-                });
+                        }
+
+                        if let Ok(name) = world.get::<&Name>(selected) {
+                            body.row(18.0, |mut row| {
+                                row.col(|ui| {
+                                    ui.label("Name");
+                                });
+                                row.col(|ui| {
+                                    ui.label(name.0.clone());
+                                });
+                            });
+                        }
+
+                        if let Ok(typename) = world.get::<&TypeName>(selected) {
+                            body.row(18.0, |mut row| {
+                                row.col(|ui| {
+                                    ui.label("Type");
+                                });
+                                row.col(|ui| {
+                                    ui.label(typename.0.clone());
+                                });
+                            });
+                        }
+
+                        if let Ok(state) = world.get::<&State>(selected) {
+                            body.row(18.0, |mut row| {
+                                row.col(|ui| {
+                                    ui.label("State");
+                                });
+                                row.col(|ui| {
+                                    ui.label(format!("{state:?}"));
+                                });
+                            });
+                        }
+                    });
+
+                if let Ok(properties) = world.get::<&Properties>(selected) {
+                    ui.add_space(10.0);
+                    egui::ScrollArea::horizontal()
+                        .id_source("properties_table_scroll_area")
+                        .show(ui, |ui| {
+                            TableBuilder::new(ui)
+                                .column(Column::auto().at_least(100.0))
+                                .column(Column::remainder())
+                                .header(20.0, |mut header| {
+                                    header.col(|ui| {
+                                        ui.strong("Property");
+                                    });
+                                    header.col(|ui| {
+                                        ui.strong("Value");
+                                    });
+                                })
+                                .body(|mut body| {
+                                    for (key, value) in properties.0.iter() {
+                                        body.row(18.0, |mut row| {
+                                            row.col(|ui| {
+                                                ui.label(key);
+                                            });
+                                            row.col(|ui| {
+                                                ui.label(value);
+                                            });
+                                        });
+                                    }
+                                });
+                        });
+                }
             });
     }
 
@@ -358,46 +386,66 @@ fn show_debug_window(ctx: &egui::Context, world: &mut hecs::World) {
                 egui::CollapsingHeader::new("World infos")
                     .default_open(true)
                     .show(ui, |ui| {
-                        egui::Grid::new("info")
-                            .striped(true)
-                            .spacing(egui::vec2(8.0, 8.0))
-                            .show(ui, |ui| {
-                                ui.label("World size:");
-                                ui.label(world.len().to_string());
-                                ui.end_row();
+                        TableBuilder::new(ui)
+                            .column(Column::auto())
+                            .column(Column::remainder())
+                            .body(|mut body| {
+                                body.row(18.0, |mut row| {
+                                    row.col(|ui| {
+                                        ui.label("World size:");
+                                    });
+                                    row.col(|ui| {
+                                        ui.label(world.len().to_string());
+                                    });
+                                });
 
-                                ui.label("Number of nodes:");
-                                ui.label(
-                                    world
-                                        .query::<()>()
-                                        .with::<&Node>()
-                                        .iter()
-                                        .count()
-                                        .to_string(),
-                                );
-                                ui.end_row();
+                                body.row(18.0, |mut row| {
+                                    row.col(|ui| {
+                                        ui.label("Number of nodes:");
+                                    });
+                                    row.col(|ui| {
+                                        ui.label(
+                                            world
+                                                .query::<()>()
+                                                .with::<&Node>()
+                                                .iter()
+                                                .count()
+                                                .to_string(),
+                                        );
+                                    });
+                                });
 
-                                ui.label("Number of edges:");
-                                ui.label(
-                                    world
-                                        .query::<()>()
-                                        .with::<&Edge>()
-                                        .iter()
-                                        .count()
-                                        .to_string(),
-                                );
-                                ui.end_row();
+                                body.row(18.0, |mut row| {
+                                    row.col(|ui| {
+                                        ui.label("Number of edges:");
+                                    });
+                                    row.col(|ui| {
+                                        ui.label(
+                                            world
+                                                .query::<()>()
+                                                .with::<&Edge>()
+                                                .iter()
+                                                .count()
+                                                .to_string(),
+                                        );
+                                    });
+                                });
 
-                                ui.label("Number of ports:");
-                                ui.label(
-                                    world
-                                        .query::<()>()
-                                        .with::<&Port>()
-                                        .iter()
-                                        .count()
-                                        .to_string(),
-                                );
-                                ui.end_row();
+                                body.row(18.0, |mut row| {
+                                    row.col(|ui| {
+                                        ui.label("Number of ports:");
+                                    });
+                                    row.col(|ui| {
+                                        ui.label(
+                                            world
+                                                .query::<()>()
+                                                .with::<&Port>()
+                                                .iter()
+                                                .count()
+                                                .to_string(),
+                                        );
+                                    });
+                                });
                             });
                     });
 
