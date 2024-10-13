@@ -1,5 +1,5 @@
-use glib::{gobject_ffi::g_strdup_value_contents, translate::ToGlibPtr};
 use glitch_common::{comps::*, RecordingStream};
+use gst::glib::{gobject_ffi::g_strdup_value_contents, object::ObjectExt, translate::ToGlibPtr};
 use gst::{prelude::*, Element, Pad};
 use hecs::Entity;
 use log::error;
@@ -24,25 +24,6 @@ impl EntityExt for Entity {
         // passing to the app, which will assign another entity before
         // inserting it in the world.
         unsafe { std::mem::transmute(u) }
-    }
-}
-
-pub trait ObjectExt {
-    fn try_name(&self) -> Option<String>;
-}
-
-impl ObjectExt for gst::Object {
-    fn try_name(&self) -> Option<String> {
-        // FIXME somehow in the tracer it happens that the name is NULL, which leads to
-        // a crash when using `element.name()` directly
-        let name_ptr = unsafe { gst_sys::gst_object_get_name(self.as_ptr()) };
-        if name_ptr.is_null() {
-            None
-        } else {
-            Some(unsafe {
-                glib::translate::from_glib_full::<_, glib::GString>(name_ptr).to_string()
-            })
-        }
     }
 }
 
@@ -77,27 +58,25 @@ impl RecordingStreamExt for RecordingStream {
         self.insert_one(id, Node);
 
         // FIXME don't add a name component if it's not there
-        let name: Name = element
-            .upcast_ref::<gst::Object>()
-            .try_name()
-            .unwrap_or("unnamed".to_string())
-            .into();
-        self.insert_one(id, name);
+        element
+            .property::<Option<glib::GString>>("name")
+            .inspect(|s| self.insert_one(id, Name::from(s.to_string())));
 
         // FIXME don't add a type_name component if it's not there
-        let type_name: TypeName = element
+        element
             .factory()
-            .map(|f| f.name().to_string())
-            .unwrap_or("unknown".to_string())
-            .into();
-        self.insert_one(id, type_name);
+            .and_then(|f| f.property::<Option<glib::GString>>("name"))
+            .inspect(|s| {
+                let type_name: TypeName = s.to_string().into();
+                self.insert_one(id, type_name);
+            });
 
         let properties: Properties = element
             .list_properties()
             .iter()
             .map(|p| {
                 let name = p.name().to_string();
-                let value = element.property_value(&name).to_string();
+                let value = format!("{:?}", element.property_value(&name));
                 (name, value)
             })
             .collect::<HashMap<String, String>>()
@@ -120,16 +99,17 @@ impl RecordingStreamExt for RecordingStream {
         };
         self.insert_one(id, port);
 
-        if let Some(parent) = pad.parent_element().map(|e| Entity::from_hashable(&e)) {
-            self.insert_one(id, Child { parent });
-        }
+        pad.parent_element().inspect(|e| {
+            self.insert_one(
+                id,
+                Child {
+                    parent: Entity::from_hashable(&e),
+                },
+            );
+        });
 
-        let name: Name = pad
-            .upcast_ref::<gst::Object>()
-            .try_name()
-            .unwrap_or("unnamed".to_string())
-            .into();
-        self.insert_one(id, name);
+        pad.property::<Option<glib::GString>>("name")
+            .inspect(|s| self.insert_one(id, Name::from(s.to_string())));
 
         id
     }
