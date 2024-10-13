@@ -153,9 +153,10 @@ pub fn show_ui(
 
     if state.show_left_panel && world.query::<&Node>().iter().count() > 0 {
         egui::SidePanel::left("left_panel")
+            .resizable(true)
             .frame(side_panel_frame)
             .show(ctx, |ui| {
-                egui::ScrollArea::vertical().show(ui, |ui| {
+                egui::ScrollArea::both().show(ui, |ui| {
                     let mut nodes = Vec::new();
                     for (entity, _) in world.query::<&Node>().iter() {
                         if world.get::<&Child>(entity).is_err() {
@@ -163,18 +164,23 @@ pub fn show_ui(
                         }
                     }
 
+                    // Collect all the ancestors of the current selection
                     let mut selected_entities = Vec::new();
                     if let Some(selected) = state.current_selection {
+                        let view = world.view::<&Child>();
                         let mut current = Some(selected);
                         while let Some(entity) = current {
                             selected_entities.push(entity);
-                            current = world.get::<&Child>(entity).ok().map(|c| c.parent);
+                            current = view.get(entity).map(|c| c.parent);
                         }
                     }
 
-                    for node in nodes {
-                        show_node_tree(ui, world, node, &selected_entities, 0);
-                    }
+                    state.current_selection =
+                        nodes
+                            .into_iter()
+                            .fold(state.current_selection, |selection, node| {
+                                show_node_tree(ui, world, node, &selected_entities, 0).or(selection)
+                            });
                 });
             });
     }
@@ -281,7 +287,8 @@ pub fn show_ui(
     if state.show_right_panel {
         egui::SidePanel::right("right_panel")
             .resizable(true)
-            .min_width(300.0)
+            .default_width(250.0)
+            .min_width(200.0)
             .frame(side_panel_frame)
             .show_animated(ctx, state.current_selection.is_some(), |ui| {
                 let selected = state.current_selection.unwrap();
@@ -741,7 +748,9 @@ fn show_node_tree(
     entity: hecs::Entity,
     selected_entities: &[hecs::Entity],
     depth: usize,
-) {
+) -> Option<hecs::Entity> {
+    let mut proposed_selection = None;
+
     let name = world
         .get::<&Name>(entity)
         .map(|n| n.0.clone())
@@ -754,25 +763,75 @@ fn show_node_tree(
         .collect();
 
     let selected = selected_entities.first() == Some(&entity);
-    let open = selected_entities.contains(&entity);
+    let open = selected_entities.len() > 1 && selected_entities[1..].contains(&entity);
     let text_color = if selected {
         ui.visuals().strong_text_color()
     } else {
         ui.visuals().text_color()
     };
 
-    if children.is_empty() {
-        ui.colored_label(text_color, name);
+    let where_to_put_background = ui.painter().add(egui::Shape::Noop);
+
+    let rect = if children.is_empty() {
+        ui.horizontal(|ui| {
+            if world.satisfies::<&Port>(entity).is_ok() {
+                let s = ui.style();
+                let circle_size = s.port_radius() * 2.0;
+                ui.painter().circle(
+                    ui.min_rect().left_center(),
+                    s.port_radius(),
+                    s.port_bg_fill(),
+                    s.port_stroke(false),
+                );
+                ui.add_space(circle_size);
+            }
+            let label_response = ui.colored_label(text_color, name);
+            if label_response.clicked() {
+                proposed_selection = Some(entity);
+            }
+        })
+        .response
+        .rect
     } else {
-        // FIXME open the header if any of its descendants is selected
-        egui::CollapsingHeader::new(egui::RichText::new(name).color(text_color))
-            .id_source(entity)
-            .default_open(depth < 3)
-            .open(if open { Some(true) } else { None })
-            .show(ui, |ui| {
-                for child in children {
-                    show_node_tree(ui, world, child, selected_entities, depth + 1);
+        let mut state = egui::collapsing_header::CollapsingState::load_with_default_open(
+            ui.ctx(),
+            ui.id().with(entity),
+            depth < 3,
+        );
+        if open {
+            state.set_open(true);
+        }
+        let response = state
+            .show_header(ui, |ui| {
+                let label_response = ui.colored_label(text_color, name);
+                if label_response.clicked() {
+                    proposed_selection = Some(entity);
                 }
+            })
+            .body(|ui| {
+                proposed_selection =
+                    children
+                        .into_iter()
+                        .fold(proposed_selection, |selection, child| {
+                            show_node_tree(ui, world, child, selected_entities, depth + 1)
+                                .or(selection)
+                        });
             });
+
+        response.1.response.rect
+    };
+
+    if selected {
+        let rect = rect.with_min_x(0.0).with_max_x(ui.clip_rect().max.x);
+        ui.painter().set(
+            where_to_put_background,
+            egui::Shape::Rect(epaint::RectShape::filled(
+                rect,
+                0.0,
+                ui.visuals().selection.bg_fill,
+            )),
+        );
     }
+
+    proposed_selection
 }
