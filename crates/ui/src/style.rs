@@ -13,7 +13,7 @@ pub trait GraphStyle {
     fn port_bg_fill(&self) -> Color32;
     fn port_stroke(&self, selected: bool) -> Stroke;
     fn port_radius(&self) -> f32;
-    fn link_stroke(&self) -> Stroke;
+    fn link_stroke(&self, selected: bool) -> Stroke;
 }
 
 impl GraphStyle for egui::Style {
@@ -61,23 +61,23 @@ impl GraphStyle for egui::Style {
     }
 
     fn port_stroke(&self, selected: bool) -> Stroke {
-        if selected {
-            self.node_stroke(true)
-        } else {
-            self.link_stroke()
-        }
+        self.link_stroke(selected)
     }
 
     fn port_radius(&self) -> f32 {
         5.0
     }
 
-    fn link_stroke(&self) -> Stroke {
-        let color = self
-            .visuals
-            .strong_text_color()
-            .gamma_multiply(0.3)
-            .to_opaque();
-        Stroke::new(1.0, color)
+    fn link_stroke(&self, selected: bool) -> Stroke {
+        if selected {
+            self.visuals.selection.stroke
+        } else {
+            let color = self
+                .visuals
+                .strong_text_color()
+                .gamma_multiply(0.3)
+                .to_opaque();
+            Stroke::new(1.0, color)
+        }
     }
 }
