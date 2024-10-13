@@ -354,55 +354,53 @@ fn show_debug_window(ctx: &egui::Context, world: &mut hecs::World) {
         .default_open(false)
         .anchor(egui::Align2::LEFT_BOTTOM, egui::Vec2::new(10.0, -10.0))
         .show(ctx, |ui| {
-            egui::Grid::new("info")
-                .striped(true)
-                .spacing(egui::vec2(8.0, 8.0))
-                .show(ui, |ui| {
-                    ui.label("World size:");
-                    ui.label(world.len().to_string());
-                    ui.end_row();
-
-                    ui.label("Number of nodes:");
-                    ui.label(
-                        world
-                            .query::<()>()
-                            .with::<&Node>()
-                            .iter()
-                            .count()
-                            .to_string(),
-                    );
-                    ui.end_row();
-
-                    ui.label("Number of edges:");
-                    ui.label(
-                        world
-                            .query::<()>()
-                            .with::<&Edge>()
-                            .iter()
-                            .count()
-                            .to_string(),
-                    );
-                    ui.end_row();
-
-                    ui.label("Number of ports:");
-                    ui.label(
-                        world
-                            .query::<()>()
-                            .with::<&Port>()
-                            .iter()
-                            .count()
-                            .to_string(),
-                    );
-                    ui.end_row();
-
-                    ui.label("Debug on hover");
-                    let mut debug_on_hover = ctx.debug_on_hover();
-                    ui.checkbox(&mut debug_on_hover, "enable");
-                    ctx.set_debug_on_hover(debug_on_hover);
-                    ui.end_row();
-                });
-
             egui::ScrollArea::vertical().show(ui, |ui| {
+                egui::CollapsingHeader::new("World infos")
+                    .default_open(true)
+                    .show(ui, |ui| {
+                        egui::Grid::new("info")
+                            .striped(true)
+                            .spacing(egui::vec2(8.0, 8.0))
+                            .show(ui, |ui| {
+                                ui.label("World size:");
+                                ui.label(world.len().to_string());
+                                ui.end_row();
+
+                                ui.label("Number of nodes:");
+                                ui.label(
+                                    world
+                                        .query::<()>()
+                                        .with::<&Node>()
+                                        .iter()
+                                        .count()
+                                        .to_string(),
+                                );
+                                ui.end_row();
+
+                                ui.label("Number of edges:");
+                                ui.label(
+                                    world
+                                        .query::<()>()
+                                        .with::<&Edge>()
+                                        .iter()
+                                        .count()
+                                        .to_string(),
+                                );
+                                ui.end_row();
+
+                                ui.label("Number of ports:");
+                                ui.label(
+                                    world
+                                        .query::<()>()
+                                        .with::<&Port>()
+                                        .iter()
+                                        .count()
+                                        .to_string(),
+                                );
+                                ui.end_row();
+                            });
+                    });
+
                 ctx.settings_ui(ui);
             })
         });
