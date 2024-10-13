@@ -563,12 +563,16 @@ fn show_node(
                         }
                     };
 
+                    let selected = current_selection == Some(link.output_port)
+                        || current_selection == Some(link.input_port);
+                    let stroke = style.link_stroke(selected).zoomed(zoom);
+
                     shapes.push(epaint::Shape::CubicBezier(
                         epaint::CubicBezierShape::from_points_stroke(
                             compute_bezier_points(*from, *to, 0.5),
                             false,
                             egui::Color32::TRANSPARENT,
-                            style.link_stroke().zoomed(zoom),
+                            stroke,
                         ),
                     ));
                 }
