@@ -37,10 +37,9 @@ impl Command {
             Command::Despawn(entity) => entity,
         };
 
-        *entity = mapping
+        *entity = *mapping
             .entry(*entity)
-            .or_insert_with(|| world.reserve_entity())
-            .clone();
+            .or_insert_with(|| world.reserve_entity());
     }
 
     pub fn run_on(self, world: &mut hecs::World) {
@@ -76,10 +75,9 @@ impl AppendTo for Child {
         mapping: &mut HashMap<Entity, Entity>,
         world: &mut hecs::World,
     ) {
-        self.parent = mapping
+        self.parent = *mapping
             .entry(self.parent)
             .or_insert_with(|| world.reserve_entity())
-            .clone()
     }
 }
 
@@ -89,15 +87,13 @@ impl AppendTo for Edge {
         mapping: &mut HashMap<Entity, Entity>,
         world: &mut hecs::World,
     ) {
-        self.output_port = mapping
+        self.output_port = *mapping
             .entry(self.output_port)
-            .or_insert_with(|| world.reserve_entity())
-            .clone();
+            .or_insert_with(|| world.reserve_entity());
 
-        self.input_port = mapping
+        self.input_port = *mapping
             .entry(self.input_port)
-            .or_insert_with(|| world.reserve_entity())
-            .clone();
+            .or_insert_with(|| world.reserve_entity());
     }
 }
 

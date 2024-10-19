@@ -46,4 +46,3 @@ RUN tar -cvjSf gstreamer-${GSTREAMER_VERSION}-jammy-$(uname -m).tbz2 gstreamer-$
 
 FROM scratch as artifact
 COPY --from=build-gstreamer /output/gstreamer-*.tbz2 /
-

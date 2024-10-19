@@ -9,6 +9,12 @@ pub struct RecordingStream {
     pub tx: tokio::sync::broadcast::Sender<Command>,
 }
 
+impl Default for RecordingStream {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RecordingStream {
     pub fn new() -> Self {
         // Spawn a tokio task that connects to the remoc server and forwards the events

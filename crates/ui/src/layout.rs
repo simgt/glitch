@@ -98,7 +98,7 @@ impl DAGLayout {
                 ref layers,
             } = *world.get::<&TopologyLayout>(root)?;
 
-            self.assign_coordinates(&layers, &world.view::<&Size>(), &graph)
+            self.assign_coordinates(layers, &world.view::<&Size>(), graph)
                 .context("Failed to assign coordinates")?
         };
 
@@ -306,7 +306,7 @@ impl DAGLayout {
                 }
 
                 // Enforce minimum vertical distance between nodes
-                let mut sorted_nodes: Vec<_> = layer.iter().copied().collect();
+                let mut sorted_nodes: Vec<_> = layer.to_vec();
                 sorted_nodes.sort_by(|&a, &b| {
                     positions[&a]
                         .y
