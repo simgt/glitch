@@ -1,8 +1,9 @@
 use crate::{DAGLayout, GraphStyle, PanZoomArea, Zoom};
-use anyhow::Context;
+use anyhow::{Context, Result};
 use egui::{self, Modifiers, Pos2, Rect, Vec2};
 use egui_extras::{Column, TableBuilder};
 use glitch_common::{comps::*, ser};
+use hecs::Entity;
 use log::*;
 use std::{collections::HashSet, io::Read, ops::Deref};
 
@@ -13,7 +14,7 @@ pub struct UiState {
     size_tracker: hecs::ChangeTracker<Size>,
     tree_change_tracker: hecs::ChangeTracker<Child>,
     graph_change_tracker: hecs::ChangeTracker<Edge>,
-    current_selection: Option<hecs::Entity>,
+    current_selection: Selection,
 }
 
 impl Default for UiState {
@@ -25,6 +26,36 @@ impl Default for UiState {
             tree_change_tracker: Default::default(),
             graph_change_tracker: Default::default(),
             current_selection: Default::default(),
+        }
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum Selection {
+    #[default]
+    None,
+    Entity(hecs::Entity),
+}
+
+impl Selection {
+    pub fn or(self, other: Self) -> Self {
+        match self {
+            Selection::None => other,
+            _ => self,
+        }
+    }
+
+    pub fn is_entity(&self) -> bool {
+        matches!(self, Selection::Entity(_))
+    }
+
+    pub fn map_entity_or<U, F>(self, default: U, f: F) -> U
+    where
+        F: FnOnce(Entity) -> U,
+    {
+        match self {
+            Selection::Entity(entity) => f(entity),
+            _ => default,
         }
     }
 }
@@ -166,7 +197,7 @@ pub fn show_ui(
 
                     // Collect all the ancestors of the current selection
                     let mut selected_entities = Vec::new();
-                    if let Some(selected) = state.current_selection {
+                    if let Selection::Entity(selected) = state.current_selection {
                         let view = world.view::<&Child>();
                         let mut current = Some(selected);
                         while let Some(entity) = current {
@@ -272,11 +303,13 @@ pub fn show_ui(
                     roots
                         .into_iter()
                         .fold(state.current_selection, |selected, root| {
-                            show_node(ui, world, root, zoom, state.current_selection).or(selected)
+                            show_node(ui, world, root, zoom, state.current_selection)
+                                .unwrap_or(Selection::None)
+                                .or(selected)
                         });
 
                 if ui.interact_bg(egui::Sense::click()).clicked() {
-                    state.current_selection = None;
+                    state.current_selection = Selection::None;
                 }
             });
 
@@ -290,8 +323,11 @@ pub fn show_ui(
             .default_width(250.0)
             .min_width(200.0)
             .frame(side_panel_frame)
-            .show_animated(ctx, state.current_selection.is_some(), |ui| {
-                let selected = state.current_selection.unwrap();
+            .show_animated(ctx, state.current_selection.is_entity(), |ui| {
+                let Selection::Entity(selected) = state.current_selection else {
+                    error!("Invalid selection");
+                    return;
+                };
                 TableBuilder::new(ui)
                     .column(Column::auto().at_least(100.0))
                     .column(Column::remainder())
@@ -466,16 +502,16 @@ fn show_node(
     world: &mut hecs::World,
     entity: hecs::Entity,
     zoom: f32,
-    current_selection: Option<hecs::Entity>,
-) -> Option<hecs::Entity> {
+    current_selection: Selection,
+) -> Result<Selection> {
     let style = ui.ctx().style();
-    let mut proposed_selection = None;
+    let mut proposed_selection = Selection::None;
 
     let is_root = world.get::<&Child>(entity).is_err();
-    let selected = current_selection == Some(entity);
+    let selected = current_selection == Selection::Entity(entity);
 
-    let name = world.get::<&Name>(entity).ok()?.deref().clone();
-    let pos = world.get::<&Pos2>(entity).ok()?.deref().clone();
+    let name = world.get::<&Name>(entity)?.deref().clone();
+    let pos = world.get::<&Pos2>(entity)?.deref().clone();
 
     // FIXME It'd apparently be better to use Areas for this, and they'll handle the click better
     // as long as they are drawn back to front
@@ -493,7 +529,7 @@ fn show_node(
             egui::Sense::click(),
         );
         if r.clicked() {
-            proposed_selection = Some(entity);
+            proposed_selection = Selection::Entity(entity);
         }
     }
 
@@ -596,7 +632,10 @@ fn show_node(
                         .iter()
                         .cloned()
                         .fold(proposed_selection, |selected, child| {
-                            show_node(ui, world, child, zoom, current_selection).or(selected)
+                            show_node(ui, world, child, zoom, current_selection)
+                                .inspect_err(|e| error!("{e:?}"))
+                                .unwrap_or(Selection::None)
+                                .or(selected)
                         });
 
                 // Draw the links
@@ -618,8 +657,8 @@ fn show_node(
                         }
                     };
 
-                    let selected = current_selection == Some(link.output_port)
-                        || current_selection == Some(link.input_port);
+                    let selected = current_selection == Selection::Entity(link.output_port)
+                        || current_selection == Selection::Entity(link.input_port);
                     let stroke = style.link_stroke(selected).zoomed(zoom);
 
                     shapes.push(epaint::Shape::CubicBezier(
@@ -674,7 +713,7 @@ fn show_node(
     )
     .or(proposed_selection);
 
-    proposed_selection
+    Ok(proposed_selection)
 }
 
 fn show_ports(
@@ -684,12 +723,12 @@ fn show_ports(
     direction: Port,
     rect: Rect,
     zoom: f32,
-    current_selection: Option<hecs::Entity>,
-) -> Option<hecs::Entity> {
+    current_selection: Selection,
+) -> Selection {
     let painter = ui.painter();
     let s = ui.style();
 
-    let mut proposed_selection = None;
+    let mut proposed_selection = Selection::None;
 
     let entities = world
         .query::<(&Child, &Port)>()
@@ -709,7 +748,7 @@ fn show_ports(
     };
 
     for (index, entity) in entities.iter().cloned().enumerate() {
-        let selected = current_selection.map_or(false, |s| s == parent || s == entity);
+        let selected = current_selection.map_entity_or(false, |s| s == parent || s == entity);
 
         let pos = top.lerp(bottom, (index as f32 + 1.0) / (entities.len() as f32 + 1.0));
         painter.circle(
@@ -725,7 +764,7 @@ fn show_ports(
             egui::Sense::click(),
         );
         if response.clicked() {
-            proposed_selection = Some(entity);
+            proposed_selection = Selection::Entity(entity);
         }
 
         world.insert_one(entity, pos).unwrap();
@@ -748,8 +787,8 @@ fn show_node_tree(
     entity: hecs::Entity,
     selected_entities: &[hecs::Entity],
     depth: usize,
-) -> Option<hecs::Entity> {
-    let mut proposed_selection = None;
+) -> Selection {
+    let mut proposed_selection = Selection::None;
 
     let name = world
         .get::<&Name>(entity)
@@ -787,7 +826,7 @@ fn show_node_tree(
             }
             let label_response = ui.colored_label(text_color, name);
             if label_response.clicked() {
-                proposed_selection = Some(entity);
+                proposed_selection = Selection::Entity(entity);
             }
         })
         .response
@@ -805,7 +844,7 @@ fn show_node_tree(
             .show_header(ui, |ui| {
                 let label_response = ui.colored_label(text_color, name);
                 if label_response.clicked() {
-                    proposed_selection = Some(entity);
+                    proposed_selection = Selection::Entity(entity);
                 }
             })
             .body(|ui| {
