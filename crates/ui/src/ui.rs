@@ -138,7 +138,7 @@ pub fn show_ui(
                             )
                             .unwrap();
                             hecs::serialize::row::serialize(
-                                &world,
+                                world,
                                 &mut ser::SerContext,
                                 &mut serializer,
                             )
@@ -511,7 +511,7 @@ fn show_node(
     let selected = current_selection == Selection::Entity(entity);
 
     let name = world.get::<&Name>(entity)?.deref().clone();
-    let pos = world.get::<&Pos2>(entity)?.deref().clone();
+    let pos = *world.get::<&Pos2>(entity)?.deref();
 
     // FIXME It'd apparently be better to use Areas for this, and they'll handle the click better
     // as long as they are drawn back to front

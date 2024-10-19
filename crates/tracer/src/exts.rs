@@ -103,7 +103,7 @@ impl RecordingStreamExt for RecordingStream {
             self.insert_one(
                 id,
                 Child {
-                    parent: Entity::from_hashable(&e),
+                    parent: Entity::from_hashable(e),
                 },
             );
         });
