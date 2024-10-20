@@ -1,10 +1,16 @@
-# Glitch
-
 <p align="center">
     <img src="https://github.com/simgt/glitch/actions/workflows/ci.yml/badge.svg?branch=main" />
 </p>
 
-A pipeline viewer for gstreamer.
+# Glitch
+
+A compute graph visualiser with a tracer for gstreamer pipelines.
+
+_Disclaimer: this is still very much a work in progress :)_
+
+<p align="center">
+    <img src="./screenshot.png" width="70%" />
+</p>
 
 Features:
 
@@ -13,11 +19,12 @@ Features:
 - [ ] Live view of pads content for known caps
 - [ ] Timeline of events with topology changes
 
-To use it with your gstreamer pipeline: build all the targets, launch the app (`cargo run`)
+To use it with your gstreamer pipeline: build all the targets, launch the app (`cargo run --release`)
 and start your program with the custom tracer:
 
 ```
-GST_PLUGIN_PATH=$PWD/target/debug/ GST_TRACERS="glitchtracing" gst-launch-1.0 videotestsrc ! identity ! fakesink
+export GST_PLUGIN_PATH=$PWD/target/release/
+GST_TRACERS="glitchtracing" gst-launch-1.0 videotestsrc ! identity ! fakesink
 ```
 
 If needed, change the ip and port to use for connecting to the app with `GST_TRACERS="glitchtracing(ip=$IP,port=$PORT)"`.
@@ -25,7 +32,7 @@ If needed, change the ip and port to use for connecting to the app with `GST_TRA
 ## Development
 
 The viewer app itself doesn't depend on gstreamer and tries to be agnostic
-about the kind of compute graph it's visualizing. The goal is to be able to
+about the kind of compute graph it's visualising. The goal is to be able to
 support other frameworks like [vector](https://github.com/vectordotdev/vector)
 or [mediapipe](https://github.com/google-ai-edge/mediapipe).
 
