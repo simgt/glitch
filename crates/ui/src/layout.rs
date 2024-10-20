@@ -49,7 +49,7 @@ impl DAGLayout {
             graph.add_node(entity);
         }
 
-        // Iterate over all the wires, and add the edges that are to and from
+        // Iterate over all the edges, and add the ones that are to and from
         // nodes of this graph
         for (_, edge) in world.query::<&Edge>().iter() {
             let Ok(from_node) = world
@@ -116,8 +116,17 @@ impl DAGLayout {
         &self,
         graph: &DiGraphMap<hecs::Entity, ()>,
     ) -> Result<Vec<Vec<hecs::Entity>>> {
+        // Assign layers to nodes based on their topological order. We do two passes
+        // to avoid unecessarily long edges.
+        // Instead of this:
+        //   | A | ----------> | D | -> | F | -> | E |
+        //   | B | -> | C | -> |   | ----------> | G |
+        // We want this:
+        //            | A | -> | D | -> | F | -> | E |
+        //   | B | -> | C | -> |   | -> | G |
+
         let topo_order = toposort(graph, None).map_err(|_| anyhow!("Graph has cycles"))?;
-        let mut layer_map = HashMap::new();
+        let mut layer_map: HashMap<_, usize> = HashMap::new();
 
         for &node in &topo_order {
             let max_pred_layer = graph
@@ -126,6 +135,19 @@ impl DAGLayout {
                 .max()
                 .unwrap_or(0);
             layer_map.insert(node, max_pred_layer);
+        }
+
+        for &node in topo_order.iter().rev() {
+            let layer = *layer_map.get(&node).unwrap_or(&0);
+            let min_succ_layer = graph
+                .edges_directed(node, petgraph::Direction::Outgoing)
+                .map(|e| *layer_map.get(&e.target()).unwrap_or(&0))
+                .min()
+                .unwrap_or(0);
+
+            if min_succ_layer > layer + 1 {
+                layer_map.insert(node, min_succ_layer.saturating_sub(1));
+            }
         }
 
         // Group nodes by layer
