@@ -29,7 +29,7 @@ log.workspace = true
 petgraph.workspace = true
 remoc.workspace = true
 rfd = "0.13"
-ron = "0.8"
+ron.workspace = true
 serde = { workspace = true, features = ["derive"] }
 tempfile = "3.8"
 tracing.workspace = true

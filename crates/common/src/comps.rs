@@ -1,4 +1,4 @@
-use derive_more::{Constructor, From};
+use derive_more::{Constructor, Display, From};
 use petgraph::graphmap::DiGraphMap;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -25,10 +25,10 @@ pub enum State {
     Failed,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, From)]
+#[derive(Debug, Display, PartialEq, Eq, Clone, Serialize, Deserialize, From)]
 pub struct Name(pub String);
 
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, From)]
+#[derive(Debug, Display, PartialEq, Eq, Clone, Serialize, Deserialize, From)]
 pub struct TypeName(pub String);
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Default, From)]
@@ -47,7 +47,7 @@ pub struct Edge {
     pub input_port: hecs::Entity,
 }
 
-#[derive(Debug, PartialEq, Eq, Copy, Clone, Serialize, Deserialize, From)]
+#[derive(Debug, Display, PartialEq, Eq, Copy, Clone, Serialize, Deserialize, From)]
 pub struct Size(pub egui::Vec2);
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Serialize, Deserialize)]

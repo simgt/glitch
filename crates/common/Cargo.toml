@@ -10,6 +10,7 @@ description.workspace = true
 gstreamer = ["gst", "gst-sys", "glib"]
 
 [dependencies]
+anyhow.workspace = true
 derive_more.workspace = true
 egui.workspace = true
 enum_dispatch.workspace = true
@@ -19,6 +20,7 @@ gst-sys = { workspace = true, optional = true }
 hecs.workspace = true
 petgraph.workspace = true
 remoc.workspace = true
+ron.workspace = true
 serde.workspace = true
 tokio.workspace = true
 tracing.workspace = true

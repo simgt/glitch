@@ -1,5 +1,21 @@
 use crate::comps::*;
+use anyhow::{Context, Result};
 use hecs::serialize::row::*;
+use std::{io::Read, path::Path};
+use tracing::info;
+
+pub fn load_world(path: impl AsRef<Path>) -> Result<hecs::World> {
+    let path = path.as_ref();
+    info!("Loading world from {path:?}");
+    let mut bytes = Vec::new();
+    let mut deserializer = std::fs::File::open(path)
+        .context("Failed to open file")
+        .and_then(|mut file| file.read_to_end(&mut bytes).context("Failed to read file"))
+        .and_then(|_| ron::de::Deserializer::from_bytes(&bytes).context("Failed to deserialize"))
+        .unwrap();
+    hecs::serialize::row::deserialize(&mut SerContext, &mut deserializer)
+        .context("Failed to deserialize world")
+}
 
 pub struct SerContext;
 

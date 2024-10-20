@@ -8,8 +8,10 @@ use hecs::Entity;
 #[cfg(feature = "reload")]
 use hot_lib::*;
 use remoc::prelude::*;
+use ser::load_world;
 use std::collections::HashMap;
 use std::net::Ipv4Addr;
+use std::path::PathBuf;
 use tokio::net::TcpListener;
 use tracing::debug;
 use tracing::{error, info};
@@ -32,7 +34,11 @@ mod hot_lib {
 
 #[derive(Parser)]
 #[command(author, version, about)]
-struct Args {}
+struct Args {
+    /// Load content from a file
+    #[clap(short, long)]
+    load: Option<PathBuf>,
+}
 
 pub struct App {
     world: hecs::World,
@@ -44,7 +50,7 @@ pub struct App {
 }
 
 impl App {
-    fn new(cc: &eframe::CreationContext<'_>, _args: Args) -> Self {
+    fn new(cc: &eframe::CreationContext<'_>, args: Args) -> Self {
         let ctx = cc.egui_ctx.clone();
         // FIXME set dark and light themes when this is in a release: https://github.com/emilk/egui/pull/4744
         ctx.set_visuals(egui::Visuals {
@@ -65,8 +71,14 @@ impl App {
 
         rt.spawn(serve(tx));
 
+        let world = if let Some(path) = args.load {
+            load_world(&path).unwrap()
+        } else {
+            hecs::World::default()
+        };
+
         Self {
-            world: hecs::World::new(),
+            world,
             remote_entities: HashMap::default(),
             rt,
             rx,

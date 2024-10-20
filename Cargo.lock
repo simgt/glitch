@@ -1954,6 +1954,7 @@ dependencies = [
 name = "glitch-common"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "derive_more",
  "egui 0.28.1",
  "enum_dispatch",
@@ -1963,6 +1964,7 @@ dependencies = [
  "hecs",
  "petgraph",
  "remoc",
+ "ron",
  "serde",
  "test-log",
  "tokio",

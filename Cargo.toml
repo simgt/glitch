@@ -31,6 +31,7 @@ hecs = { version = "0.10", features = ["macros", "serde", "row-serialize"] }
 log = "0.4"
 petgraph = "0.6"
 remoc = "0.14"
+ron = "0.8"
 serde = { version = "1", features = ["derive"] }
 test-log = { version = "0.2", features = ["trace"] }
 tokio = { version = "1", features = ["full"] }

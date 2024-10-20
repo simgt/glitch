@@ -1,11 +1,14 @@
 use crate::{DAGLayout, GraphStyle, PanZoomArea, Zoom};
-use anyhow::{Context, Result};
+use anyhow::Result;
 use egui::{self, Modifiers, Pos2, Rect, Vec2};
 use egui_extras::{Column, TableBuilder};
-use glitch_common::{comps::*, ser};
+use glitch_common::{
+    comps::*,
+    ser::{self, load_world},
+};
 use hecs::Entity;
 use log::*;
-use std::{collections::HashSet, io::Read, ops::Deref};
+use std::{collections::HashSet, ops::Deref};
 
 /// FIXME We can probably put this in ctx.memory()
 pub struct UiState {
@@ -60,6 +63,16 @@ impl Selection {
     }
 }
 
+trait ChangesExt {
+    fn any(&mut self) -> bool;
+}
+
+impl<'a, T: hecs::Component + Clone + PartialEq> ChangesExt for hecs::Changes<'a, T> {
+    fn any(&mut self) -> bool {
+        self.changed().count() > 0 || self.added().count() > 0 || self.removed().count() > 0
+    }
+}
+
 #[no_mangle]
 pub fn show_ui(
     state: &mut UiState,
@@ -100,23 +113,7 @@ pub fn show_ui(
                     if ui.button("Open...").clicked() {
                         if let Some(path) = dialog.clone().pick_file() {
                             info!("Loading world from {path:?}");
-                            let mut bytes = Vec::new();
-                            let mut deserializer = std::fs::File::open(path)
-                                .context("Failed to open file")
-                                .and_then(|mut file| {
-                                    file.read_to_end(&mut bytes).context("Failed to read file")
-                                })
-                                .and_then(|_| {
-                                    ron::de::Deserializer::from_bytes(&bytes)
-                                        .context("Failed to deserialize")
-                                })
-                                .unwrap();
-                            *world = hecs::serialize::row::deserialize(
-                                &mut ser::SerContext,
-                                &mut deserializer,
-                            )
-                            .context("Failed to deserialize world")
-                            .unwrap();
+                            *world = load_world(path).unwrap();
 
                             state.size_tracker = Default::default();
                             state.tree_change_tracker = Default::default();
@@ -242,21 +239,8 @@ pub fn show_ui(
                     .map(|(_, c)| c.parent)
                     .collect::<HashSet<_>>();
 
-                let topology_changed = {
-                    let tree_changes = {
-                        let mut changes = state.tree_change_tracker.track(world);
-                        changes.changed().count() > 0
-                            || changes.added().count() > 0
-                            || changes.removed().count() > 0
-                    };
-                    let graph_changes = {
-                        let mut changes = state.graph_change_tracker.track(world);
-                        changes.changed().count() > 0
-                            || changes.added().count() > 0
-                            || changes.removed().count() > 0
-                    };
-                    tree_changes || graph_changes
-                };
+                let topology_changed = state.tree_change_tracker.track(world).any()
+                    || state.graph_change_tracker.track(world).any();
 
                 if topology_changed || reorganise {
                     // FIXME Only relayout the trees that have changed
@@ -271,10 +255,7 @@ pub fn show_ui(
                     buffer.run_on(world);
                 }
 
-                let size_changed = {
-                    let mut changes = state.size_tracker.track(world);
-                    changes.changed().count() > 0 || changes.added().count() > 0
-                };
+                let size_changed = state.size_tracker.track(world).any();
 
                 if size_changed || reorganise {
                     let mut buffer = hecs::CommandBuffer::new();
@@ -339,9 +320,33 @@ pub fn show_ui(
                                     ui.label("Entity");
                                 });
                                 row.col(|ui| {
-                                    ui.label(format!("{:?}", selected));
+                                    ui.label(format!("{selected:?}"));
                                 });
                             });
+
+                            // Display position
+                            if let Ok(pos) = world.get::<&Pos2>(selected) {
+                                body.row(18.0, |mut row| {
+                                    row.col(|ui| {
+                                        ui.label("Position");
+                                    });
+                                    row.col(|ui| {
+                                        ui.label(format!("{pos:?}"));
+                                    });
+                                });
+                            }
+
+                            // Display size
+                            if let Ok(size) = world.get::<&Size>(selected) {
+                                body.row(18.0, |mut row| {
+                                    row.col(|ui| {
+                                        ui.label("Size");
+                                    });
+                                    row.col(|ui| {
+                                        ui.label(format!("{size}"));
+                                    });
+                                });
+                            }
                         }
 
                         if let Ok(name) = world.get::<&Name>(selected) {
@@ -350,7 +355,7 @@ pub fn show_ui(
                                     ui.label("Name");
                                 });
                                 row.col(|ui| {
-                                    ui.label(name.0.clone());
+                                    ui.label(format!("{name}"));
                                 });
                             });
                         }
@@ -361,7 +366,7 @@ pub fn show_ui(
                                     ui.label("Type");
                                 });
                                 row.col(|ui| {
-                                    ui.label(typename.0.clone());
+                                    ui.label(format!("{typename}"));
                                 });
                             });
                         }
@@ -510,6 +515,8 @@ fn show_node(
     let is_root = world.get::<&Child>(entity).is_err();
     let selected = current_selection == Selection::Entity(entity);
 
+    debug!("Showing node {entity:?} (is_root = {is_root}, selected = {selected})");
+
     let name = world.get::<&Name>(entity)?.deref().clone();
     let pos = *world.get::<&Pos2>(entity)?.deref();
 
@@ -639,20 +646,26 @@ fn show_node(
                         });
 
                 // Draw the links
-                // FIXME allow selecting the links
                 let mut shapes = Vec::new();
                 for link in edges.iter() {
+                    debug!("Drawing link {link:?}");
                     let from = match world.get::<&Pos2>(link.output_port) {
                         Ok(pos) => pos,
                         Err(_) => {
-                            error!("Link output port not found");
+                            error!(
+                                "Output port {port:?} doesn't have a position",
+                                port = link.output_port
+                            );
                             continue;
                         }
                     };
                     let to = match world.get::<&Pos2>(link.input_port) {
                         Ok(pos) => pos,
                         Err(_) => {
-                            error!("Link input port not found");
+                            error!(
+                                "Input port {port:?} doesn't have a position",
+                                port = link.output_port
+                            );
                             continue;
                         }
                     };
