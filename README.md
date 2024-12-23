@@ -29,6 +29,8 @@ GST_TRACERS="glitchtracing" gst-launch-1.0 videotestsrc ! identity ! fakesink
 
 If needed, change the ip and port to use for connecting to the app with `GST_TRACERS="glitchtracing(ip=$IP,port=$PORT)"`.
 
+**The quickest way to try the UI is to load [demo_save.ron](./demo_save.ron) from the top menu. No gstreamer required.**
+
 ## Development
 
 The viewer app itself doesn't depend on gstreamer and tries to be agnostic
