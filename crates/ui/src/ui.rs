@@ -67,7 +67,7 @@ trait ChangesExt {
     fn any(&mut self) -> bool;
 }
 
-impl<'a, T: hecs::Component + Clone + PartialEq> ChangesExt for hecs::Changes<'a, T> {
+impl<T: hecs::Component + Clone + PartialEq> ChangesExt for hecs::Changes<'_, T> {
     fn any(&mut self) -> bool {
         self.changed().count() > 0 || self.added().count() > 0 || self.removed().count() > 0
     }
