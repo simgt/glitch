@@ -110,6 +110,7 @@ mod imp {
                     gst::StateChange::ReadyToNull => State::Null,
                     _ => return,
                 };
+                self.stream.insert_element(element);
                 self.stream.insert_one(id, new_state);
             } else {
                 error!(
@@ -124,6 +125,8 @@ mod imp {
         }
 
         fn bin_add_post(&self, _ts: u64, bin: &gst::Bin, element: &gst::Element, _success: bool) {
+            self.stream.insert_element(bin.as_ref());
+            self.stream.insert_element(element);
             self.stream.insert_one(
                 Entity::from_hashable(element),
                 Child {
