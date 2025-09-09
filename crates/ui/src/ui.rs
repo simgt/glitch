@@ -1,4 +1,4 @@
-use crate::{DAGLayout, GraphStyle, PanZoomArea, Zoom};
+use crate::{DAGLayout, GraphStyle, Zoom};
 use anyhow::Result;
 use egui::{self, Modifiers, Pos2, Rect, Vec2};
 use egui_extras::{Column, TableBuilder};
@@ -18,6 +18,7 @@ pub struct UiState {
     tree_change_tracker: hecs::ChangeTracker<Child>,
     graph_change_tracker: hecs::ChangeTracker<Edge>,
     current_selection: Selection,
+    scene_rect: Rect,
 }
 
 impl Default for UiState {
@@ -29,6 +30,7 @@ impl Default for UiState {
             tree_change_tracker: Default::default(),
             graph_change_tracker: Default::default(),
             current_selection: Default::default(),
+            scene_rect: Rect::ZERO,
         }
     }
 }
@@ -213,91 +215,6 @@ pub fn show_ui(
             });
     }
 
-    egui::CentralPanel::default()
-        .frame(egui::containers::Frame {
-            fill: ctx.style().visuals.window_fill.gamma_multiply(0.95),
-            inner_margin: egui::Margin::symmetric(5, 20),
-            ..Default::default()
-        })
-        .show(ctx, |ui| {
-            PanZoomArea.show(ui, |ui, zoom| {
-                let roots = world
-                    .query::<()>()
-                    .with::<&Node>()
-                    .without::<&Child>()
-                    .iter()
-                    .map(|(e, _)| e)
-                    .collect::<Vec<_>>();
-
-                let node_margin = ui.style().node_margin().zoomed(zoom);
-                let layout = DAGLayout::new(node_margin.sum());
-
-                let parent_nodes = world
-                    .query::<&Child>()
-                    .with::<&Node>()
-                    .iter()
-                    .map(|(_, c)| c.parent)
-                    .collect::<HashSet<_>>();
-
-                let topology_changed = state.tree_change_tracker.track(world).any()
-                    || state.graph_change_tracker.track(world).any();
-
-                if topology_changed || reorganise {
-                    // FIXME Only relayout the trees that have changed
-                    // Should be easy to trace back to the roots with ancestors and a set
-                    info!("Relayouting");
-                    let mut buffer = hecs::CommandBuffer::new();
-                    for &entity in parent_nodes.iter() {
-                        if let Err(e) = layout.update_topology(world, entity, &mut buffer) {
-                            error!("Error during topology update: {e}");
-                        }
-                    }
-                    buffer.run_on(world);
-                }
-
-                let size_changed = state.size_tracker.track(world).any();
-
-                if size_changed || reorganise {
-                    let mut buffer = hecs::CommandBuffer::new();
-
-                    for &entity in parent_nodes.iter() {
-                        if let Err(e) = layout.update_positions(world, entity, &mut buffer) {
-                            error!("Error during node positioning: {e}");
-                        }
-                    }
-
-                    // Insert a position for each root in the world, by using the size of the previous one
-                    let margin = node_margin.sum();
-                    let mut y = 0.0;
-                    for root in roots.iter().cloned() {
-                        if let Ok(size) = world.get::<&Size>(root) {
-                            buffer.insert_one(root, Pos2::new(0.0, y));
-                            y += size.0.y + 2.0 * margin.y;
-                        }
-                    }
-
-                    buffer.run_on(world);
-                }
-
-                // Draw the graphs and update the selected entity if needed
-                state.current_selection =
-                    roots
-                        .into_iter()
-                        .fold(state.current_selection, |selected, root| {
-                            show_node(ui, world, root, zoom, state.current_selection)
-                                .unwrap_or(Selection::None)
-                                .or(selected)
-                        });
-
-                if ui.interact_bg(egui::Sense::click()).clicked() {
-                    state.current_selection = Selection::None;
-                }
-            });
-
-            #[cfg(debug_assertions)]
-            show_debug_window(ctx, world);
-        });
-
     if state.show_right_panel {
         egui::SidePanel::right("right_panel")
             .resizable(true)
@@ -386,7 +303,7 @@ pub fn show_ui(
                 if let Ok(properties) = world.get::<&Properties>(selected) {
                     ui.add_space(10.0);
                     egui::ScrollArea::horizontal()
-                        .id_source("properties_table_scroll_area")
+                        .id_salt("properties_table_scroll_area")
                         .show(ui, |ui| {
                             TableBuilder::new(ui)
                                 .column(Column::auto().at_least(100.0))
@@ -415,6 +332,92 @@ pub fn show_ui(
                 }
             });
     }
+
+    egui::CentralPanel::default()
+        .frame(egui::containers::Frame {
+            fill: ctx.style().visuals.window_fill.gamma_multiply(0.95),
+            inner_margin: egui::Margin::symmetric(5, 20),
+            ..Default::default()
+        })
+        .show(ctx, |ui| {
+            egui::Scene::new().show(ui, &mut state.scene_rect, |ui| {
+                let zoom = 1.0;
+                let roots = world
+                    .query::<()>()
+                    .with::<&Node>()
+                    .without::<&Child>()
+                    .iter()
+                    .map(|(e, _)| e)
+                    .collect::<Vec<_>>();
+
+                let node_margin = ui.style().node_margin().zoomed(zoom);
+                let layout = DAGLayout::new(node_margin.sum());
+
+                let parent_nodes = world
+                    .query::<&Child>()
+                    .with::<&Node>()
+                    .iter()
+                    .map(|(_, c)| c.parent)
+                    .collect::<HashSet<_>>();
+
+                let topology_changed = state.tree_change_tracker.track(world).any()
+                    || state.graph_change_tracker.track(world).any();
+
+                if topology_changed || reorganise {
+                    // FIXME Only relayout the trees that have changed
+                    // Should be easy to trace back to the roots with ancestors and a set
+                    info!("Relayouting");
+                    let mut buffer = hecs::CommandBuffer::new();
+                    for &entity in parent_nodes.iter() {
+                        if let Err(e) = layout.update_topology(world, entity, &mut buffer) {
+                            error!("Error during topology update: {e}");
+                        }
+                    }
+                    buffer.run_on(world);
+                }
+
+                let size_changed = state.size_tracker.track(world).any();
+
+                if size_changed || reorganise {
+                    let mut buffer = hecs::CommandBuffer::new();
+
+                    for &entity in parent_nodes.iter() {
+                        if let Err(e) = layout.update_positions(world, entity, &mut buffer) {
+                            error!("Error during node positioning: {e}");
+                        }
+                    }
+
+                    // Insert a position for each root in the world, by using the size of the previous one
+                    let margin = node_margin.sum();
+                    let mut y = 0.0;
+                    for root in roots.iter().cloned() {
+                        if let Ok(size) = world.get::<&Size>(root) {
+                            buffer.insert_one(root, Pos2::new(0.0, y));
+                            y += size.0.y + 2.0 * margin.y;
+                        }
+                    }
+
+                    buffer.run_on(world);
+                }
+
+                // Draw the graphs and update the selected entity if needed
+                state.current_selection =
+                    roots
+                        .into_iter()
+                        .fold(state.current_selection, |selected, root| {
+                            show_node(ui, world, root, zoom, state.current_selection)
+                                .unwrap_or(Selection::None)
+                                .or(selected)
+                        });
+
+                if ui.response().clicked() {
+                    state.current_selection = Selection::None;
+                }
+            });
+
+            #[cfg(debug_assertions)]
+            show_debug_window(ctx, world);
+        });
 
     if reorganise {
         ctx.memory_mut(|mem| mem.reset_areas());
@@ -525,7 +528,12 @@ fn show_node(
     let mut inner_rect = ui.max_rect();
     inner_rect.min += pos.to_vec2();
     inner_rect.max = inner_rect.max.max(inner_rect.min);
-    let mut child_ui = ui.child_ui_with_id_source(inner_rect, *ui.layout(), "child", None);
+
+    let builder = egui::UiBuilder::new()
+        .max_rect(inner_rect)
+        .layout(*ui.layout())
+        .id_salt("node_child");
+    let mut child_ui = ui.new_child(builder);
 
     // We need to do the click interaction before recurring in the children, otherwise the root
     // node is always getting the click. The drawback is that we use the previous position and size
@@ -541,7 +549,7 @@ fn show_node(
     }
 
     let mut prepared_frame = egui::Frame::default()
-        .rounding(style.node_rounding())
+        .corner_radius(style.node_corner_radius())
         .inner_margin(style.node_padding())
         .stroke(style.node_stroke(selected))
         .fill(style.node_bg_color())

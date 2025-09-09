@@ -7,7 +7,7 @@ pub trait GraphStyle {
     fn node_bg_selected_color(&self) -> Color32;
     fn node_stroke(&self, selected: bool) -> Stroke;
     fn node_padding(&self) -> Margin;
-    fn node_rounding(&self) -> CornerRadius;
+    fn node_corner_radius(&self) -> CornerRadius;
     fn node_margin(&self) -> Margin; // FIXME use `Margin` instead
     fn node_shadow(&self) -> Shadow;
     fn port_bg_fill(&self) -> Color32;
@@ -44,7 +44,7 @@ impl GraphStyle for egui::Style {
         Margin::symmetric(20, 15)
     }
 
-    fn node_rounding(&self) -> CornerRadius {
+    fn node_corner_radius(&self) -> CornerRadius {
         CornerRadius::same(5)
     }
 
