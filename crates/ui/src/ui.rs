@@ -95,9 +95,9 @@ pub fn show_ui(
 
     egui::TopBottomPanel::top("top_panel")
         .frame(egui::Frame::default().inner_margin(egui::Margin {
-            left: 76.0,
-            top: 6.0,
-            bottom: 6.0,
+            left: 76,
+            top: 6,
+            bottom: 6,
             ..Default::default()
         }))
         .show(ctx, |ui| {
@@ -175,7 +175,7 @@ pub fn show_ui(
 
     let side_panel_frame = egui::Frame {
         fill: ctx.style().visuals.window_fill.gamma_multiply(0.95),
-        inner_margin: egui::Margin::symmetric(10.0, 10.0),
+        inner_margin: egui::Margin::symmetric(10, 10),
         ..Default::default()
     };
 
@@ -216,7 +216,7 @@ pub fn show_ui(
     egui::CentralPanel::default()
         .frame(egui::containers::Frame {
             fill: ctx.style().visuals.window_fill.gamma_multiply(0.95),
-            inner_margin: egui::Margin::symmetric(5.0, 20.0),
+            inner_margin: egui::Margin::symmetric(5, 20),
             ..Default::default()
         })
         .show(ctx, |ui| {

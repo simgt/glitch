@@ -1,5 +1,5 @@
 use eframe::egui;
-use egui::{Color32, Margin, Rounding, Shadow, Stroke};
+use egui::{Color32, CornerRadius, Margin, Shadow, Stroke};
 
 pub trait GraphStyle {
     fn node_bg_color(&self) -> Color32;
@@ -7,7 +7,7 @@ pub trait GraphStyle {
     fn node_bg_selected_color(&self) -> Color32;
     fn node_stroke(&self, selected: bool) -> Stroke;
     fn node_padding(&self) -> Margin;
-    fn node_rounding(&self) -> Rounding;
+    fn node_rounding(&self) -> CornerRadius;
     fn node_margin(&self) -> Margin; // FIXME use `Margin` instead
     fn node_shadow(&self) -> Shadow;
     fn port_bg_fill(&self) -> Color32;
@@ -41,15 +41,15 @@ impl GraphStyle for egui::Style {
     }
 
     fn node_padding(&self) -> Margin {
-        Margin::symmetric(20.0, 15.0)
+        Margin::symmetric(20, 15)
     }
 
-    fn node_rounding(&self) -> Rounding {
-        Rounding::same(5.0)
+    fn node_rounding(&self) -> CornerRadius {
+        CornerRadius::same(5)
     }
 
     fn node_margin(&self) -> Margin {
-        Margin::same(10.0)
+        Margin::same(10)
     }
 
     fn node_shadow(&self) -> Shadow {
