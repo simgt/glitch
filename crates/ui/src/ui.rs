@@ -333,6 +333,23 @@ pub fn show_ui(
             });
     }
 
+    // Query all child nodes, then follow links to parents to compute the max depth
+    let mut max_depth = 1;
+    for (entity, _) in world.query::<&Child>().with::<&Node>().iter() {
+        let mut depth = 1;
+        let mut current = entity;
+
+        // Follow parent chain to compute depth
+        while let Ok(child) = world.get::<&Child>(current) {
+            depth += 1;
+            current = child.parent;
+        }
+
+        max_depth = max_depth.max(depth);
+    }
+    // A pipeline with only one element will have a depth of 2
+    let zoom = (max_depth as f32 - 1.0).max(1.0);
+
     egui::CentralPanel::default()
         .frame(egui::containers::Frame {
             fill: ctx.style().visuals.window_fill.gamma_multiply(0.95),
@@ -340,80 +357,83 @@ pub fn show_ui(
             ..Default::default()
         })
         .show(ctx, |ui| {
-            egui::Scene::new().show(ui, &mut state.scene_rect, |ui| {
-                let zoom = 1.0;
-                let roots = world
-                    .query::<()>()
-                    .with::<&Node>()
-                    .without::<&Child>()
-                    .iter()
-                    .map(|(e, _)| e)
-                    .collect::<Vec<_>>();
+            egui::Scene::new().zoom_range(0.0..=(1.0 / zoom)).show(
+                ui,
+                &mut state.scene_rect,
+                |ui| {
+                    let roots = world
+                        .query::<()>()
+                        .with::<&Node>()
+                        .without::<&Child>()
+                        .iter()
+                        .map(|(e, _)| e)
+                        .collect::<Vec<_>>();
 
-                let node_margin = ui.style().node_margin().zoomed(zoom);
-                let layout = DAGLayout::new(node_margin.sum());
+                    let node_margin = ui.style().node_margin().zoomed(zoom);
+                    let layout = DAGLayout::new(node_margin.sum());
 
-                let parent_nodes = world
-                    .query::<&Child>()
-                    .with::<&Node>()
-                    .iter()
-                    .map(|(_, c)| c.parent)
-                    .collect::<HashSet<_>>();
+                    let parent_nodes = world
+                        .query::<&Child>()
+                        .with::<&Node>()
+                        .iter()
+                        .map(|(_, c)| c.parent)
+                        .collect::<HashSet<_>>();
 
-                let topology_changed = state.tree_change_tracker.track(world).any()
-                    || state.graph_change_tracker.track(world).any();
+                    let topology_changed = state.tree_change_tracker.track(world).any()
+                        || state.graph_change_tracker.track(world).any();
 
-                if topology_changed || reorganise {
-                    // FIXME Only relayout the trees that have changed
-                    // Should be easy to trace back to the roots with ancestors and a set
-                    info!("Relayouting");
-                    let mut buffer = hecs::CommandBuffer::new();
-                    for &entity in parent_nodes.iter() {
-                        if let Err(e) = layout.update_topology(world, entity, &mut buffer) {
-                            error!("Error during topology update: {e}");
+                    if topology_changed || reorganise {
+                        // FIXME Only relayout the trees that have changed
+                        // Should be easy to trace back to the roots with ancestors and a set
+                        info!("Relayouting");
+                        let mut buffer = hecs::CommandBuffer::new();
+                        for &entity in parent_nodes.iter() {
+                            if let Err(e) = layout.update_topology(world, entity, &mut buffer) {
+                                error!("Error during topology update: {e}");
+                            }
                         }
-                    }
-                    buffer.run_on(world);
-                }
-
-                let size_changed = state.size_tracker.track(world).any();
-
-                if size_changed || reorganise {
-                    let mut buffer = hecs::CommandBuffer::new();
-
-                    for &entity in parent_nodes.iter() {
-                        if let Err(e) = layout.update_positions(world, entity, &mut buffer) {
-                            error!("Error during node positioning: {e}");
-                        }
+                        buffer.run_on(world);
                     }
 
-                    // Insert a position for each root in the world, by using the size of the previous one
-                    let margin = node_margin.sum();
-                    let mut y = 0.0;
-                    for root in roots.iter().cloned() {
-                        if let Ok(size) = world.get::<&Size>(root) {
-                            buffer.insert_one(root, Pos2::new(0.0, y));
-                            y += size.0.y + 2.0 * margin.y;
+                    let size_changed = state.size_tracker.track(world).any();
+
+                    if size_changed || reorganise {
+                        let mut buffer = hecs::CommandBuffer::new();
+
+                        for &entity in parent_nodes.iter() {
+                            if let Err(e) = layout.update_positions(world, entity, &mut buffer) {
+                                error!("Error during node positioning: {e}");
+                            }
                         }
+
+                        // Insert a position for each root in the world, by using the size of the previous one
+                        let margin = node_margin.sum();
+                        let mut y = 0.0;
+                        for root in roots.iter().cloned() {
+                            if let Ok(size) = world.get::<&Size>(root) {
+                                buffer.insert_one(root, Pos2::new(0.0, y));
+                                y += size.0.y + 2.0 * margin.y;
+                            }
+                        }
+
+                        buffer.run_on(world);
                     }
 
-                    buffer.run_on(world);
-                }
+                    // Draw the graphs and update the selected entity if needed
+                    state.current_selection =
+                        roots
+                            .into_iter()
+                            .fold(state.current_selection, |selected, root| {
+                                show_node(ui, world, root, zoom, state.current_selection)
+                                    .unwrap_or(Selection::None)
+                                    .or(selected)
+                            });
 
-                // Draw the graphs and update the selected entity if needed
-                state.current_selection =
-                    roots
-                        .into_iter()
-                        .fold(state.current_selection, |selected, root| {
-                            show_node(ui, world, root, zoom, state.current_selection)
-                                .unwrap_or(Selection::None)
-                                .or(selected)
-                        });
-
-                if ui.response().clicked() {
-                    state.current_selection = Selection::None;
-                }
-            });
+                    if ui.response().clicked() {
+                        state.current_selection = Selection::None;
+                    }
+                },
+            );
 
             #[cfg(debug_assertions)]
             show_debug_window(ctx, world);
