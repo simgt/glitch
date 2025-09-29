@@ -97,7 +97,7 @@ pub fn show_ui(
 
     egui::TopBottomPanel::top("top_panel")
         .frame(egui::Frame::default().inner_margin(egui::Margin {
-            left: 76,
+            left: if cfg!(target_os = "macos") { 76 } else { 6 },
             top: 6,
             bottom: 6,
             ..Default::default()
