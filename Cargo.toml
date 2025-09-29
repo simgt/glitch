@@ -14,11 +14,11 @@ anyhow = "1"
 chrono = "0.4"
 crossbeam = { version = "0.8", features = ["crossbeam-channel"] }
 derive_more = { version = "1", features = ["full"] }
-eframe = "0.31"
-egui = { version = "0.31", features = ["serde"] }
-egui_extras = { version = "0.31", features = ["image"] }
+eframe = "0.32"
+egui = { version = "0.32", features = ["serde"] }
+egui_extras = { version = "0.32", features = ["image"] }
 enum_dispatch = "0.3"
-epaint = "0.31"
+epaint = "0.32"
 glib = "0"
 gst = { package = 'gstreamer', version = "0" }
 gst-app = { package = "gstreamer-app", version = "0" }

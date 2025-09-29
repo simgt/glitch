@@ -103,7 +103,7 @@ pub fn show_ui(
             ..Default::default()
         }))
         .show(ctx, |ui| {
-            egui::menu::bar(ui, |ui| {
+            egui::MenuBar::new().ui(ui, |ui| {
                 let now = chrono::Local::now();
 
                 ui.menu_button("File", |ui| {
