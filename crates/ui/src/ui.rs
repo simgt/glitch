@@ -1,6 +1,6 @@
 use crate::{DAGLayout, GraphStyle, Zoom};
 use anyhow::Result;
-use egui::{self, Modifiers, Pos2, Rect, Vec2};
+use egui::{self, collapsing_header::CollapsingState, Modifiers, Pos2, Rect, Vec2};
 use egui_extras::{Column, TableBuilder};
 use glitch_common::{
     comps::*,
@@ -357,10 +357,11 @@ pub fn show_ui(
             ..Default::default()
         })
         .show(ctx, |ui| {
-            egui::Scene::new().zoom_range(0.0..=(1.0 / zoom)).show(
-                ui,
-                &mut state.scene_rect,
-                |ui| {
+            let scene = egui::Scene::new().zoom_range(0.0..=1.0);
+            let mut inner_rect = Rect::NAN;
+
+            let response = scene
+                .show(ui, &mut state.scene_rect, |ui| {
                     let roots = world
                         .query::<()>()
                         .with::<&Node>()
@@ -429,11 +430,17 @@ pub fn show_ui(
                                     .or(selected)
                             });
 
-                    if ui.response().clicked() {
-                        state.current_selection = Selection::None;
-                    }
-                },
-            );
+                    inner_rect = ui.min_rect();
+                })
+                .response;
+
+            if response.clicked() {
+                state.current_selection = Selection::None;
+            }
+
+            if response.double_clicked() || reorganise {
+                state.scene_rect = inner_rect;
+            }
 
             #[cfg(debug_assertions)]
             show_debug_window(ctx, world);
@@ -555,16 +562,38 @@ fn show_node(
         .id_salt("node_child");
     let mut child_ui = ui.new_child(builder);
 
+    let children = world
+        .query::<&Child>()
+        .with::<&Node>()
+        .iter()
+        .filter_map(|(e, c)| if c.parent == entity { Some(e) } else { None })
+        .collect::<Vec<_>>();
+
+    let mut collapsing_state = if children.is_empty() {
+        None
+    } else {
+        Some(CollapsingState::load_with_default_open(
+            ui.ctx(),
+            ui.id().with(("node", entity)),
+            true,
+        ))
+    };
+
     // We need to do the click interaction before recurring in the children, otherwise the root
     // node is always getting the click. The drawback is that we use the previous position and size
     if let Ok(size) = world.get::<&Size>(entity) {
         let r = child_ui.interact(
             Rect::from_min_size(inner_rect.min, size.0),
-            child_ui.id().with(("click", entity)),
+            child_ui.id().with(("clicks", entity)),
             egui::Sense::click(),
         );
         if r.clicked() {
             proposed_selection = Selection::Entity(entity);
+        }
+        if r.double_clicked() {
+            if let Some(ref mut state) = collapsing_state {
+                state.toggle(&child_ui);
+            }
         }
     }
 
@@ -584,14 +613,7 @@ fn show_node(
     {
         let ui = &mut prepared_frame.content_ui;
 
-        let children = world
-            .query::<&Child>()
-            .with::<&Node>()
-            .iter()
-            .filter_map(|(e, c)| if c.parent == entity { Some(e) } else { None })
-            .collect::<Vec<_>>();
-
-        let r = ui.horizontal(|ui| {
+        ui.horizontal(|ui| {
             let font = ui
                 .style()
                 .text_styles
@@ -616,24 +638,7 @@ fn show_node(
             }
         });
 
-        if !children.is_empty() {
-            // FIXME put a button in the top left corner instead
-            let r = ui.interact(
-                r.response.rect,
-                ui.id().with(("interact", entity)),
-                egui::Sense::click(),
-            );
-
-            let mut state = egui::collapsing_header::CollapsingState::load_with_default_open(
-                ui.ctx(),
-                ui.id().with(("node", entity)),
-                true,
-            );
-
-            if r.clicked() {
-                state.toggle(ui);
-            }
-
+        if let Some(mut state) = collapsing_state {
             state.show_body_unindented(ui, |ui| {
                 let edges: Vec<_> = world
                     .query::<&Edge>()
