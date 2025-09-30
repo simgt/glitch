@@ -27,3 +27,4 @@ tracing.workspace = true
 
 [dev-dependencies]
 test-log.workspace = true
+tempfile = "3.0"

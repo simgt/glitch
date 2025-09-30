@@ -1,7 +1,8 @@
-use crate::comps::*;
+use crate::{comps::*, DataStore};
 use anyhow::{Context, Result};
 use hecs::serialize::row::*;
-use std::{io::Read, path::Path};
+use serde::Serialize;
+use std::{collections::HashMap, io::Read, path::Path};
 use tracing::info;
 
 pub fn load_world(path: impl AsRef<Path>) -> Result<hecs::World> {
@@ -15,6 +16,91 @@ pub fn load_world(path: impl AsRef<Path>) -> Result<hecs::World> {
         .unwrap();
     hecs::serialize::row::deserialize(&mut SerContext, &mut deserializer)
         .context("Failed to deserialize world")
+}
+
+pub fn save_datastore(datastore: &DataStore, path: impl AsRef<Path>) -> Result<()> {
+    let path = path.as_ref();
+    info!("Saving datastore to {path:?}");
+
+    let mut file = std::fs::File::create(path).context("Failed to create file")?;
+
+    // Create a serializer with pretty printing
+    let mut serializer = ron::Serializer::with_options(
+        &mut file,
+        Some(ron::ser::PrettyConfig::default()),
+        Default::default(),
+    )
+    .context("Failed to create serializer")?;
+
+    // First serialize the world using hecs serialization
+    let mut world_bytes = Vec::new();
+    {
+        let mut world_serializer = ron::Serializer::with_options(
+            &mut world_bytes,
+            Some(ron::ser::PrettyConfig::default()),
+            Default::default(),
+        )
+        .context("Failed to create world serializer")?;
+
+        hecs::serialize::row::serialize(
+            datastore.current_world(),
+            &mut SerContext,
+            &mut world_serializer,
+        )
+        .context("Failed to serialize world")?;
+    }
+
+    // Create a container structure for both world and datastore data
+    #[derive(serde::Serialize)]
+    struct DataStoreContainer {
+        world_data: String,
+        command_history: std::collections::BTreeMap<crate::Timestamp, Vec<crate::Command>>,
+    }
+
+    let container = DataStoreContainer {
+        world_data: String::from_utf8(world_bytes)
+            .context("Failed to convert world data to string")?,
+        command_history: datastore.command_history.clone(),
+    };
+
+    container
+        .serialize(&mut serializer)
+        .context("Failed to serialize datastore")
+}
+
+pub fn load_datastore(path: impl AsRef<Path>) -> Result<DataStore> {
+    let path = path.as_ref();
+    info!("Loading datastore from {path:?}");
+
+    let mut bytes = Vec::new();
+    std::fs::File::open(path)
+        .context("Failed to open file")?
+        .read_to_end(&mut bytes)
+        .context("Failed to read file")?;
+
+    #[derive(serde::Deserialize)]
+    struct DataStoreContainer {
+        world_data: String,
+        command_history: std::collections::BTreeMap<crate::Timestamp, Vec<crate::Command>>,
+    }
+
+    let container: DataStoreContainer =
+        ron::de::from_bytes(&bytes).context("Failed to deserialize datastore")?;
+
+    // Deserialize the world from the embedded world data
+    let world_bytes = container.world_data.as_bytes();
+    let mut world_deserializer = ron::de::Deserializer::from_bytes(world_bytes)
+        .context("Failed to create world deserializer")?;
+    let world = hecs::serialize::row::deserialize(&mut SerContext, &mut world_deserializer)
+        .context("Failed to deserialize world")?;
+
+    Ok(DataStore {
+        snapshot: crate::Snapshot {
+            world,
+            remote_entities: HashMap::new(),
+        },
+        command_history: container.command_history,
+    })
 }
 
 pub struct SerContext;
@@ -92,5 +178,66 @@ impl DeserializeContext for SerContext {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Command, Node, SpawnOrInsert};
+    use tempfile::NamedTempFile;
+
+    #[test]
+    fn test_datastore_serialization() {
+        // Create a test DataStore with some data
+        let mut datastore = DataStore::default();
+
+        // Add some entities to the world
+        let entity1 = datastore.current_world_mut().spawn((Node {},));
+        let entity2 = datastore.current_world_mut().spawn((Node {},));
+
+        // Add some commands to the history
+        let cmd1 = Command::SpawnOrInsert(entity1, SpawnOrInsert::Node(Node {}));
+        let cmd2 = Command::SpawnOrInsert(entity2, SpawnOrInsert::Node(Node {}));
+
+        datastore.record_command(cmd1);
+        datastore.record_command(cmd2);
+
+        // Save to a temporary file
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        save_datastore(&datastore, temp_file.path()).expect("Failed to save datastore");
+
+        // Load from the temporary file
+        let loaded_datastore = load_datastore(temp_file.path()).expect("Failed to load datastore");
+
+        // Verify the data
+        assert_eq!(
+            loaded_datastore.command_history.len(),
+            datastore.command_history.len()
+        );
+        assert_eq!(loaded_datastore.history_len(), datastore.history_len());
+
+        // Verify the world has the same number of entities
+        assert_eq!(
+            loaded_datastore.current_world().len(),
+            datastore.current_world().len()
+        );
+    }
+
+    #[test]
+    fn test_empty_datastore_serialization() {
+        let datastore = DataStore::default();
+
+        // Save to a temporary file
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        save_datastore(&datastore, temp_file.path()).expect("Failed to save empty datastore");
+
+        // Load from the temporary file
+        let loaded_datastore =
+            load_datastore(temp_file.path()).expect("Failed to load empty datastore");
+
+        // Verify the data
+        assert_eq!(loaded_datastore.command_history.len(), 0);
+        assert_eq!(loaded_datastore.current_world().len(), 0);
     }
 }

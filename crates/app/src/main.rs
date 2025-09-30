@@ -4,12 +4,11 @@ use eframe::egui;
 use glitch_common::*;
 #[cfg(not(feature = "reload"))]
 use glitch_ui::*;
-use hecs::Entity;
+
 #[cfg(feature = "reload")]
 use hot_lib::*;
 use remoc::prelude::*;
-use ser::load_world;
-use std::collections::HashMap;
+use ser::load_datastore;
 use std::net::Ipv4Addr;
 use std::path::PathBuf;
 use tokio::net::TcpListener;
@@ -24,6 +23,7 @@ use tracing_subscriber::{prelude::*, EnvFilter};
 )]
 mod hot_lib {
     use eframe::egui;
+    pub use glitch_common::DataStore;
     pub use glitch_ui::UiState;
 
     hot_functions_from_file!("crates/ui/src/ui.rs");
@@ -41,8 +41,7 @@ struct Args {
 }
 
 pub struct App {
-    world: hecs::World,
-    remote_entities: HashMap<Entity, Entity>,
+    data_store: DataStore,
     #[allow(dead_code)]
     rt: tokio::runtime::Runtime,
     rx: tokio::sync::mpsc::Receiver<Command>,
@@ -71,15 +70,14 @@ impl App {
 
         rt.spawn(serve(tx));
 
-        let world = if let Some(path) = args.load {
-            load_world(&path).unwrap()
+        let data_store = if let Some(path) = args.load {
+            load_datastore(&path).unwrap()
         } else {
-            hecs::World::default()
+            DataStore::default()
         };
 
         Self {
-            world,
-            remote_entities: HashMap::default(),
+            data_store,
             rt,
             rx,
             ui_state: UiState::default(),
@@ -87,10 +85,9 @@ impl App {
     }
 
     pub fn recv_commands(&mut self, ctx: &egui::Context) {
-        while let Ok(mut cmd) = self.rx.try_recv() {
-            cmd.translate_entities(&mut self.remote_entities, &mut self.world);
+        while let Ok(cmd) = self.rx.try_recv() {
             debug!("Received command: {cmd:?}");
-            cmd.run_on(&mut self.world);
+            self.data_store.record_command(cmd);
         }
 
         // FIXME this is a hack to make sure the update function is recalled
@@ -101,7 +98,7 @@ impl App {
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         self.recv_commands(ctx);
-        show_ui(&mut self.ui_state, &mut self.world, ctx, frame);
+        show_ui(&mut self.ui_state, &mut self.data_store, ctx, frame);
     }
 }
 
@@ -191,6 +188,7 @@ mod tests {
     use super::*;
     use crate::Command;
     use glitch_common::client::connect_client;
+    use hecs::Entity;
     use test_log::test;
 
     #[test(tokio::test)]

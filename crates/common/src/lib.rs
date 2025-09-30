@@ -8,9 +8,99 @@ pub use comps::*;
 use enum_dispatch::enum_dispatch;
 use hecs::Entity;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 pub const DEFAULT_PORT: u16 = 9870;
+
+pub type Timestamp = u64;
+
+#[derive(Default)]
+pub struct Snapshot {
+    pub world: hecs::World,
+    pub remote_entities: HashMap<Entity, Entity>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct DataStore {
+    #[serde(skip)]
+    snapshot: Snapshot,
+    command_history: BTreeMap<Timestamp, Vec<Command>>,
+}
+
+impl Default for DataStore {
+    fn default() -> Self {
+        Self {
+            snapshot: Snapshot::default(),
+            command_history: BTreeMap::new(),
+        }
+    }
+}
+
+pub enum ViewMode {
+    Latest,
+    Specific(Timestamp),
+}
+
+impl DataStore {
+    pub fn record_command(&mut self, mut command: Command) {
+        command.translate_entities(&mut self.snapshot.remote_entities, &mut self.snapshot.world);
+
+        let timestamp = if self.command_history.is_empty() {
+            0
+        } else {
+            self.command_history.keys().next_back().unwrap() + 1
+        };
+
+        self.command_history
+            .entry(timestamp)
+            .or_insert_with(Vec::new)
+            .push(command.clone());
+
+        // TODO if self.current_view_mode == ViewMode::Latest {
+        command.run_on(&mut self.snapshot.world);
+    }
+
+    pub fn current_world(&self) -> &hecs::World {
+        &self.snapshot.world
+    }
+
+    pub fn current_world_mut(&mut self) -> &mut hecs::World {
+        &mut self.snapshot.world
+    }
+
+    pub fn set_view(&mut self, view_mode: ViewMode) {
+        // TODO set the current world based on the requested timestamp (latest snapshot + all commands up to)
+        // TODO add self.current_view_mode
+        // TODO rename self.world to self.current_world
+    }
+
+    pub fn commands_in<R>(&self, range: R) -> Vec<Command>
+    where
+        R: std::ops::RangeBounds<Timestamp>,
+    {
+        self.command_history
+            .range(range)
+            .flat_map(|(_, commands)| commands.iter().cloned())
+            .collect()
+    }
+
+    pub fn timestamp_bounds(&self) -> Option<std::ops::RangeInclusive<Timestamp>> {
+        if self.command_history.is_empty() {
+            None
+        } else {
+            let min = *self.command_history.keys().next().unwrap();
+            let max = *self.command_history.keys().next_back().unwrap();
+            Some(min..=max)
+        }
+    }
+
+    pub fn history_len(&self) -> usize {
+        self.command_history
+            .values()
+            .map(|commands| commands.len())
+            .sum()
+    }
+}
 
 // FIXME the extra enums are fairly verbose and brainfuck, find a cleaner
 // way of doing all this
