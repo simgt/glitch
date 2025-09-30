@@ -8,17 +8,22 @@ use glitch_common::{
 };
 use hecs::Entity;
 use log::*;
-use std::{collections::HashSet, ops::Deref};
+use std::{
+    collections::HashSet,
+    ops::{Deref, RangeInclusive},
+};
 
 /// FIXME We can probably put this in ctx.memory()
 pub struct UiState {
     show_left_panel: bool,
     show_right_panel: bool,
+    show_debug_window: bool,
     size_tracker: hecs::ChangeTracker<Size>,
     tree_change_tracker: hecs::ChangeTracker<Child>,
     graph_change_tracker: hecs::ChangeTracker<Edge>,
     current_selection: Selection,
     scene_rect: Rect,
+    timeline: Timeline,
 }
 
 impl Default for UiState {
@@ -26,11 +31,28 @@ impl Default for UiState {
         Self {
             show_left_panel: true,
             show_right_panel: true,
+            show_debug_window: false,
             size_tracker: Default::default(),
             tree_change_tracker: Default::default(),
             graph_change_tracker: Default::default(),
             current_selection: Default::default(),
             scene_rect: Rect::ZERO,
+            timeline: Timeline::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Timeline {
+    pub position: u64,
+    pub range: RangeInclusive<u64>,
+}
+
+impl Default for Timeline {
+    fn default() -> Self {
+        Self {
+            position: 0,
+            range: 0..=0,
         }
     }
 }
@@ -171,7 +193,33 @@ pub fn show_ui(
                     {
                         state.show_right_panel = !state.show_right_panel;
                     }
+
+                    if ui
+                        .button(if state.show_debug_window {
+                            "Hide Debug Window"
+                        } else {
+                            "Show Debug Window"
+                        })
+                        .clicked()
+                    {
+                        state.show_debug_window = !state.show_debug_window;
+                    }
                 });
+            });
+        });
+
+    egui::TopBottomPanel::bottom("timeline")
+        .frame(egui::Frame::default().inner_margin(egui::Margin::symmetric(6, 6)))
+        .show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                ui.style_mut().spacing.slider_width = ui.available_width();
+                ui.add(
+                    egui::Slider::new(&mut state.timeline.position, state.timeline.range.clone())
+                        .clamping(egui::SliderClamping::Always)
+                        .show_value(false)
+                        .trailing_fill(true)
+                        .handle_shape(egui::style::HandleShape::Rect { aspect_ratio: 0.5 }),
+                );
             });
         });
 
@@ -443,7 +491,9 @@ pub fn show_ui(
             }
 
             #[cfg(debug_assertions)]
-            show_debug_window(ctx, world);
+            if state.show_debug_window {
+                show_debug_window(ctx, world);
+            }
         });
 
     if reorganise {
