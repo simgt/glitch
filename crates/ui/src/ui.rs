@@ -11,6 +11,30 @@ use hecs::Entity;
 use log::*;
 use std::{collections::HashSet, ops::Deref};
 
+/// Helper function to sort entities by name, then by entity ID for consistent ordering
+fn sort_entities_by_name<I>(world: &hecs::World, entities: I) -> Vec<hecs::Entity>
+where
+    I: Iterator<Item = hecs::Entity>,
+{
+    let mut entities_with_names: Vec<_> = entities
+        .map(|entity| {
+            let name = world
+                .get::<&Name>(entity)
+                .ok()
+                .map(|n| n.0.clone())
+                .unwrap_or_default();
+            (name, entity)
+        })
+        .collect();
+
+    entities_with_names.sort();
+
+    entities_with_names
+        .into_iter()
+        .map(|(_, entity)| entity)
+        .collect()
+}
+
 /// FIXME We can probably put this in ctx.memory()
 pub struct UiState {
     show_left_panel: bool,
@@ -315,15 +339,21 @@ pub fn show_ui(
             .frame(side_panel_frame)
             .show(ctx, |ui| {
                 egui::ScrollArea::both().show(ui, |ui| {
-                    let mut nodes = Vec::new();
-                    {
+                    let nodes = {
                         let world = data_store.current_world();
-                        for (entity, _) in world.query::<&Node>().iter() {
-                            if world.get::<&Child>(entity).is_err() {
-                                nodes.push(entity);
-                            }
-                        }
-                    }
+                        let root_entities: Vec<_> = world
+                            .query::<&Node>()
+                            .iter()
+                            .filter_map(|(entity, _)| {
+                                if world.get::<&Child>(entity).is_err() {
+                                    Some(entity)
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect();
+                        sort_entities_by_name(world, root_entities.into_iter())
+                    };
 
                     // Collect all the ancestors of the current selection
                     let mut selected_entities = Vec::new();
@@ -506,14 +536,15 @@ pub fn show_ui(
 
             let response = scene
                 .show(ui, &mut state.scene_rect, |ui| {
-                    let roots = data_store
-                        .current_world()
+                    let world = data_store.current_world();
+                    let root_entities: Vec<_> = world
                         .query::<()>()
                         .with::<&Node>()
                         .without::<&Child>()
                         .iter()
                         .map(|(e, _)| e)
-                        .collect::<Vec<_>>();
+                        .collect();
+                    let roots = sort_entities_by_name(world, root_entities.into_iter());
 
                     let node_margin = ui.style().node_margin().zoomed(zoom);
                     let layout = DAGLayout::new(node_margin.sum());
@@ -947,7 +978,7 @@ fn show_ports(
 
     let mut proposed_selection = Selection::None;
 
-    let entities = world
+    let port_entities: Vec<_> = world
         .query::<(&Child, &Port)>()
         .iter()
         .filter_map(|(entity, (child, &port))| {
@@ -957,7 +988,8 @@ fn show_ports(
                 None
             }
         })
-        .collect::<Vec<_>>();
+        .collect();
+    let entities = sort_entities_by_name(world, port_entities.into_iter());
 
     let (top, bottom) = match direction {
         Port::Input => (rect.left_top(), rect.left_bottom()),
@@ -1012,11 +1044,12 @@ fn show_node_tree(
         .map(|n| n.0.clone())
         .unwrap_or_default();
 
-    let children: Vec<_> = world
+    let child_entities: Vec<_> = world
         .query::<&Child>()
         .iter()
         .filter_map(|(e, c)| if c.parent == entity { Some(e) } else { None })
         .collect();
+    let children = sort_entities_by_name(world, child_entities.into_iter());
 
     let selected = selected_entities.first() == Some(&entity);
     let open = selected_entities.len() > 1 && selected_entities[1..].contains(&entity);
