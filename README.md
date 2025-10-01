@@ -16,8 +16,8 @@ Features:
 
 - [x] Pipeline's complete graph with bins subgraphs
 - [x] Attach the tracer to any gstreamer-based application
+- [x] Timeline of events with topology changes
 - [ ] Live view of pads content for known caps
-- [ ] Timeline of events with topology changes
 
 To use it with your gstreamer pipeline: build all the targets, launch the app (`cargo run --release`)
 and start your program with the custom tracer:
@@ -47,6 +47,7 @@ The tracer that is embedded in the actual gstreamer program sends atomic updates
 is an entity with a node component, a name, a state etc. and once it reaches the app a size and a position can be added.
 
 The code is split in-between the following crates:
+
 - `app` the entry point to the app, can dynamically reload the `ui` crate during development when working on the rendering
 - `ui` contains (almost) all the egui-related code
 - `tracer` is the gstreamer tracer

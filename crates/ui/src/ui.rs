@@ -21,7 +21,6 @@ pub struct UiState {
     graph_change_tracker: hecs::ChangeTracker<Edge>,
     current_selection: Selection,
     scene_rect: Rect,
-    timeline_position: u64,
 }
 
 impl Default for UiState {
@@ -35,7 +34,6 @@ impl Default for UiState {
             graph_change_tracker: Default::default(),
             current_selection: Default::default(),
             scene_rect: Rect::ZERO,
-            timeline_position: Default::default(),
         }
     }
 }
@@ -208,23 +206,100 @@ pub fn show_ui(
     egui::TopBottomPanel::bottom("timeline")
         .frame(egui::Frame::default().inner_margin(egui::Margin::symmetric(6, 6)))
         .show(ctx, |ui| {
-            let range = data_store.timestamp_bounds().unwrap_or(0..=0);
-            let prev_position = state.timeline_position;
-            ui.vertical(|ui| {
-                ui.add(egui::DragValue::new(&mut state.timeline_position).range(range.clone()));
+            ui.horizontal(|ui| {
+                ui.label("Timeline:");
 
-                ui.style_mut().spacing.slider_width = ui.available_width();
-                ui.add(
-                    egui::Slider::new(&mut state.timeline_position, range)
-                        .clamping(egui::SliderClamping::Always)
-                        .show_value(false)
-                        .trailing_fill(true)
-                        .handle_shape(egui::style::HandleShape::Rect { aspect_ratio: 0.5 }),
-                );
+                // Step backward button
+                let can_step_back = data_store.can_step_backward();
+                let back_tooltip = if can_step_back {
+                    "Step backward in time"
+                } else {
+                    "No earlier commands available"
+                };
+                if ui
+                    .add_enabled(can_step_back, egui::Button::new("◀ Back"))
+                    .on_hover_text(back_tooltip)
+                    .clicked()
+                {
+                    data_store.step_backward();
+                }
+
+                // Step forward button
+                let can_step_forward = data_store.can_step_forward();
+                let forward_tooltip = if can_step_forward {
+                    "Step forward in time"
+                } else {
+                    "Already at the latest position"
+                };
+                if ui
+                    .add_enabled(can_step_forward, egui::Button::new("Forward ▶"))
+                    .on_hover_text(forward_tooltip)
+                    .clicked()
+                {
+                    data_store.step_forward();
+                }
+
+                ui.separator();
+
+                // Rolling mode toggle button
+                let is_rolling = matches!(data_store.current_view_mode, ViewMode::Rolling);
+                let (button_text, button_tooltip) = if is_rolling {
+                    ("⏸ Pause", "Stop live updates and freeze at current state")
+                } else {
+                    ("▶ Live", "Resume live updates")
+                };
+                if ui
+                    .button(button_text)
+                    .on_hover_text(button_tooltip)
+                    .clicked()
+                {
+                    if is_rolling {
+                        // Stop at current position (latest timestamp)
+                        if let Some(&latest) = data_store.command_history.keys().next_back() {
+                            data_store.set_view(ViewMode::Specific(latest));
+                        }
+                    } else {
+                        data_store.toggle_rolling_mode();
+                    }
+                }
+
+                ui.separator();
+
+                // Show current position with better formatting
+                match (data_store.current_timeline_position(), is_rolling) {
+                    (Some(position), true) => {
+                        ui.label(format!("Position: {} (Live)", position));
+                    }
+                    (Some(position), false) => {
+                        ui.label(format!("Position: {} (Paused)", position));
+                    }
+                    (None, _) => {
+                        ui.label("No commands recorded");
+                    }
+                }
             });
 
-            if prev_position != state.timeline_position {
-                data_store.set_view(ViewMode::Specific(state.timeline_position));
+            // Add the timeline slider below the buttons
+            if let Some(range) = data_store.timestamp_bounds() {
+                let mut current_position = data_store
+                    .current_timeline_position()
+                    .unwrap_or(*range.start());
+                let prev_position = current_position;
+
+                ui.vertical(|ui| {
+                    ui.style_mut().spacing.slider_width = ui.available_width();
+                    ui.add(
+                        egui::Slider::new(&mut current_position, range)
+                            .clamping(egui::SliderClamping::Always)
+                            .show_value(false)
+                            .trailing_fill(true)
+                            .handle_shape(egui::style::HandleShape::Rect { aspect_ratio: 0.5 }),
+                    );
+                });
+
+                if prev_position != current_position {
+                    data_store.set_view(ViewMode::Specific(current_position));
+                }
             }
         });
 

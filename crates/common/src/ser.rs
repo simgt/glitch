@@ -43,7 +43,7 @@ pub fn save_datastore(datastore: &DataStore, path: impl AsRef<Path>) -> Result<(
         .context("Failed to create world serializer")?;
 
         hecs::serialize::row::serialize(
-            datastore.current_world(),
+            &datastore.rolling_snapshot.world,
             &mut SerContext,
             &mut world_serializer,
         )
@@ -95,10 +95,12 @@ pub fn load_datastore(path: impl AsRef<Path>) -> Result<DataStore> {
         .context("Failed to deserialize world")?;
 
     Ok(DataStore {
-        snapshot: crate::Snapshot {
+        rolling_snapshot: crate::Snapshot {
             world,
             remote_entities: HashMap::new(),
         },
+        fixed_snapshot: crate::Snapshot::new(),
+        current_view_mode: crate::ViewMode::Rolling,
         command_history: container.command_history,
     })
 }
@@ -193,8 +195,8 @@ mod tests {
         let mut datastore = DataStore::default();
 
         // Add some entities to the world
-        let entity1 = datastore.current_world_mut().spawn((Node {},));
-        let entity2 = datastore.current_world_mut().spawn((Node {},));
+        let entity1 = datastore.rolling_snapshot.world.spawn((Node {},));
+        let entity2 = datastore.rolling_snapshot.world.spawn((Node {},));
 
         // Add some commands to the history
         let cmd1 = Command::SpawnOrInsert(entity1, SpawnOrInsert::Node(Node {}));
@@ -219,8 +221,8 @@ mod tests {
 
         // Verify the world has the same number of entities
         assert_eq!(
-            loaded_datastore.current_world().len(),
-            datastore.current_world().len()
+            loaded_datastore.rolling_snapshot.world.len(),
+            datastore.rolling_snapshot.world.len()
         );
     }
 
@@ -238,6 +240,6 @@ mod tests {
 
         // Verify the data
         assert_eq!(loaded_datastore.command_history.len(), 0);
-        assert_eq!(loaded_datastore.current_world().len(), 0);
+        assert_eq!(loaded_datastore.rolling_snapshot.world.len(), 0);
     }
 }
