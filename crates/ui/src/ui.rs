@@ -127,12 +127,12 @@ pub fn show_ui(
     let organise_shortcut = egui::KeyboardShortcut::new(Modifiers::COMMAND, egui::Key::R);
     let mut reorganise = ctx.input_mut(|i| i.consume_shortcut(&organise_shortcut));
 
+    let panel_frame = egui::Frame::side_top_panel(ctx.style().as_ref());
+
     egui::TopBottomPanel::top("top_panel")
-        .frame(egui::Frame::default().inner_margin(egui::Margin {
+        .frame(panel_frame.inner_margin(egui::Margin {
             left: if cfg!(target_os = "macos") { 76 } else { 6 },
-            top: 6,
-            bottom: 6,
-            ..Default::default()
+            ..egui::Margin::same(6)
         }))
         .show(ctx, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {
@@ -228,7 +228,7 @@ pub fn show_ui(
         });
 
     egui::TopBottomPanel::bottom("timeline")
-        .frame(egui::Frame::default().inner_margin(egui::Margin::symmetric(6, 6)))
+        .frame(panel_frame.inner_margin(egui::Margin::same(6)))
         .show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label("Timeline:");
@@ -327,11 +327,7 @@ pub fn show_ui(
             }
         });
 
-    let side_panel_frame = egui::Frame {
-        fill: ctx.style().visuals.window_fill.gamma_multiply(0.95),
-        inner_margin: egui::Margin::symmetric(10, 10),
-        ..Default::default()
-    };
+    let side_panel_frame = panel_frame.inner_margin(egui::Margin::same(10));
 
     if state.show_left_panel && data_store.current_world().query::<&Node>().iter().count() > 0 {
         egui::SidePanel::left("left_panel")
@@ -527,7 +523,6 @@ pub fn show_ui(
     egui::CentralPanel::default()
         .frame(egui::containers::Frame {
             fill: ctx.style().visuals.window_fill.gamma_multiply(0.95),
-            inner_margin: egui::Margin::symmetric(5, 20),
             ..Default::default()
         })
         .show(ctx, |ui| {
