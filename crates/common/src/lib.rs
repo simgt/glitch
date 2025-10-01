@@ -70,7 +70,7 @@ impl DataStore {
 
         self.command_history
             .entry(timestamp)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(command.clone());
 
         // Always update rolling snapshot
