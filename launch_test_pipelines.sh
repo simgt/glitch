@@ -39,15 +39,14 @@ cleanup() {
 trap cleanup EXIT INT
 
 gst-launch-1.0 \
-    videotestsrc pattern=ball ! tee name=tee ! queue ! x264enc ! tee name=enc \
-    enc. ! queue ! rtph264pay ! udpsink \
-    enc. ! queue ! h264parse ! decodebin ! fakesink &
+    videotestsrc pattern=ball ! x264enc tune=zerolatency \
+    ! queue ! rtph264pay config-interval=2 ! udpsink &
 PIDS+=($!)
 
-gst-launch-1.0 videotestsrc ! tee name=tee ! queue ! fakesink tee. ! fakesink tee. ! fakesink &
+gst-launch-1.0 \
+    udpsrc address=localhost ! application/x-rtp ! rtph264depay ! decodebin ! videoconvert ! identity ! fakesink &
 PIDS+=($!)
 
-gst-launch-1.0 videotestsrc ! videoconvert ! fakesink &
-PIDS+=($!)
-
-sleep 10;
+while true; do
+    sleep 999
+done
