@@ -23,6 +23,7 @@ log.workspace = true
 once_cell = "1"
 remoc.workspace = true
 tokio.workspace = true
+env_logger = "0.11.8"
 
 [lib]
 # We should add dylib here to allow for hot reloading, but we get a compiler

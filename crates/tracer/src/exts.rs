@@ -1,8 +1,9 @@
+use glib::ParamFlags;
 use glitch_common::{comps::*, RecordingStream};
 use gst::glib::{gobject_ffi::g_strdup_value_contents, object::ObjectExt, translate::ToGlibPtr};
 use gst::{prelude::*, Element, Pad};
 use hecs::Entity;
-use log::error;
+use log::{error, warn};
 use std::{
     collections::HashMap,
     hash::{Hash, Hasher},
@@ -74,10 +75,21 @@ impl RecordingStreamExt for RecordingStream {
         let properties: Properties = element
             .list_properties()
             .iter()
-            .map(|p| {
+            .filter_map(|p| {
                 let name = p.name().to_string();
+                // Somehow `property_value` segfaults on rtph264pay when called on
+                // non-writable properties, this may be the case on other elements.
+                // Doc states that property_value will panic in that case.
+                // Issue is this trick prevents from forwarding read-only properties
+                // like `stats` of the identity element.
+                // Related: https://discourse.gstreamer.org/t/ximagesink-segfault-on-element-name-custom-rust-tracer/1360
+                if !p.flags().contains(ParamFlags::WRITABLE) {
+                    warn!("Property {name} is not writable, skipping");
+                    return None;
+                }
+
                 let value = format!("{:?}", element.property_value(&name));
-                (name, value)
+                Some((name, value))
             })
             .collect::<HashMap<String, String>>()
             .into();

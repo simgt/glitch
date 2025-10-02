@@ -18,6 +18,9 @@ mod gst_plugin {
     fn plugin_init(plugin: &gst::Plugin) -> Result<(), glib::BoolError> {
         let _ = ManuallyDrop::new(RT.enter());
 
+        #[cfg(debug_assertions)]
+        env_logger::init();
+
         gst::Tracer::register(
             Some(plugin),
             "glitchtracing",
