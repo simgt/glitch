@@ -124,378 +124,18 @@ pub fn show_ui(
     }
     buffer.run_on(data_store.current_world_mut());
 
-    let organise_shortcut = egui::KeyboardShortcut::new(Modifiers::COMMAND, egui::Key::R);
-    let mut reorganise = ctx.input_mut(|i| i.consume_shortcut(&organise_shortcut));
+    let reorganise_shortcut = egui::KeyboardShortcut::new(Modifiers::COMMAND, egui::Key::R);
+    let reorganise = ctx.input_mut(|i| i.consume_shortcut(&reorganise_shortcut));
 
-    let panel_frame = egui::Frame::side_top_panel(ctx.style().as_ref());
-
-    egui::TopBottomPanel::top("top_panel")
-        .frame(panel_frame.inner_margin(egui::Margin {
-            left: if cfg!(target_os = "macos") { 76 } else { 6 },
-            ..egui::Margin::same(6)
-        }))
-        .show(ctx, |ui| {
-            egui::MenuBar::new().ui(ui, |ui| {
-                let now = chrono::Local::now();
-
-                ui.menu_button("File", |ui| {
-                    let file_name = format!("glitch {}.ron", now.format("%Y-%m-%d %H.%M"));
-                    let dialog = rfd::FileDialog::new()
-                        .set_file_name(&file_name)
-                        .add_filter("Glitch DataStore Files", &["ron"]);
-
-                    if ui.button("Open...").clicked() {
-                        if let Some(path) = dialog.clone().pick_file() {
-                            info!("Loading datastore from {path:?}");
-                            match load_datastore(path) {
-                                Ok(loaded_datastore) => {
-                                    *data_store = loaded_datastore;
-                                    info!(
-                                        "Successfully loaded datastore with {} commands",
-                                        data_store.history_len()
-                                    );
-
-                                    state.size_tracker = Default::default();
-                                    state.tree_change_tracker = Default::default();
-                                    state.graph_change_tracker = Default::default();
-
-                                    // FIXME this shouldn't be necessary as the trackers should detect the changes
-                                    reorganise = true;
-                                }
-                                Err(e) => {
-                                    error!("Failed to load datastore: {e}");
-                                }
-                            }
-                        }
-                    }
-
-                    if ui.button("Save as...").clicked() {
-                        if let Some(path) = dialog.save_file() {
-                            info!("Saving datastore to {path:?}");
-                            match save_datastore(data_store, path) {
-                                Ok(()) => {
-                                    info!(
-                                        "Successfully saved datastore with {} commands",
-                                        data_store.history_len()
-                                    );
-                                }
-                                Err(e) => {
-                                    error!("Failed to save datastore: {e}");
-                                }
-                            }
-                        }
-                    }
-
-                    if ui.button("Clear").clicked() {
-                        *data_store = DataStore::default();
-                    }
-                });
-
-                ui.menu_button("View", |ui| {
-                    if ui
-                        .button(if state.show_left_panel {
-                            "Hide Left Panel"
-                        } else {
-                            "Show Left Panel"
-                        })
-                        .clicked()
-                    {
-                        state.show_left_panel = !state.show_left_panel;
-                    }
-                    if ui
-                        .button(if state.show_right_panel {
-                            "Hide Right Panel"
-                        } else {
-                            "Show Right Panel"
-                        })
-                        .clicked()
-                    {
-                        state.show_right_panel = !state.show_right_panel;
-                    }
-
-                    if ui
-                        .button(if state.show_debug_window {
-                            "Hide Debug Window"
-                        } else {
-                            "Show Debug Window"
-                        })
-                        .clicked()
-                    {
-                        state.show_debug_window = !state.show_debug_window;
-                    }
-                });
-            });
-        });
-
-    egui::TopBottomPanel::bottom("timeline")
-        .frame(panel_frame.inner_margin(egui::Margin::same(6)))
-        .show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.label("Timeline:");
-
-                // Step backward button
-                let can_step_back = data_store.can_step_backward();
-                let back_tooltip = if can_step_back {
-                    "Step backward in time"
-                } else {
-                    "No earlier commands available"
-                };
-                if ui
-                    .add_enabled(can_step_back, egui::Button::new("◀ Back"))
-                    .on_hover_text(back_tooltip)
-                    .clicked()
-                {
-                    data_store.step_backward();
-                }
-
-                // Step forward button
-                let can_step_forward = data_store.can_step_forward();
-                let forward_tooltip = if can_step_forward {
-                    "Step forward in time"
-                } else {
-                    "Already at the latest position"
-                };
-                if ui
-                    .add_enabled(can_step_forward, egui::Button::new("Forward ▶"))
-                    .on_hover_text(forward_tooltip)
-                    .clicked()
-                {
-                    data_store.step_forward();
-                }
-
-                ui.separator();
-
-                // Rolling mode toggle button
-                let is_rolling = matches!(data_store.current_view_mode, ViewMode::Rolling);
-                let (button_text, button_tooltip) = if is_rolling {
-                    ("⏸ Pause", "Stop live updates and freeze at current state")
-                } else {
-                    ("▶ Live", "Resume live updates")
-                };
-                if ui
-                    .button(button_text)
-                    .on_hover_text(button_tooltip)
-                    .clicked()
-                {
-                    if is_rolling {
-                        // Stop at current position (latest timestamp)
-                        if let Some(&latest) = data_store.command_history.keys().next_back() {
-                            data_store.set_view(ViewMode::Specific(latest));
-                        }
-                    } else {
-                        data_store.toggle_rolling_mode();
-                    }
-                }
-
-                ui.separator();
-
-                // Show current position with better formatting
-                match (data_store.current_timeline_position(), is_rolling) {
-                    (Some(position), true) => {
-                        ui.label(format!("Position: {} (Live)", position));
-                    }
-                    (Some(position), false) => {
-                        ui.label(format!("Position: {} (Paused)", position));
-                    }
-                    (None, _) => {
-                        ui.label("No commands recorded");
-                    }
-                }
-            });
-
-            // Add the timeline slider below the buttons
-            if let Some(range) = data_store.timestamp_bounds() {
-                let mut current_position = data_store
-                    .current_timeline_position()
-                    .unwrap_or(*range.start());
-                let prev_position = current_position;
-
-                ui.vertical(|ui| {
-                    ui.style_mut().spacing.slider_width = ui.available_width();
-                    ui.add(
-                        egui::Slider::new(&mut current_position, range)
-                            .clamping(egui::SliderClamping::Always)
-                            .show_value(false)
-                            .trailing_fill(true)
-                            .handle_shape(egui::style::HandleShape::Rect { aspect_ratio: 0.5 }),
-                    );
-                });
-
-                if prev_position != current_position {
-                    data_store.set_view(ViewMode::Specific(current_position));
-                }
-            }
-        });
-
-    let side_panel_frame = panel_frame.inner_margin(egui::Margin::same(10));
+    show_top_menu(ctx, state, data_store);
+    show_timeline(ctx, data_store);
 
     if state.show_left_panel && data_store.current_world().query::<&Node>().iter().count() > 0 {
-        egui::SidePanel::left("left_panel")
-            .resizable(true)
-            .frame(side_panel_frame)
-            .show(ctx, |ui| {
-                egui::ScrollArea::both().show(ui, |ui| {
-                    let nodes = {
-                        let world = data_store.current_world();
-                        let root_entities: Vec<_> = world
-                            .query::<&Node>()
-                            .iter()
-                            .filter_map(|(entity, _)| {
-                                if world.get::<&Child>(entity).is_err() {
-                                    Some(entity)
-                                } else {
-                                    None
-                                }
-                            })
-                            .collect();
-                        sort_entities_by_name(world, root_entities.into_iter())
-                    };
-
-                    // Collect all the ancestors of the current selection
-                    let mut selected_entities = Vec::new();
-                    if let Selection::Entity(selected) = state.current_selection {
-                        let view = data_store.current_world().view::<&Child>();
-                        let mut current = Some(selected);
-                        while let Some(entity) = current {
-                            selected_entities.push(entity);
-                            current = view.get(entity).map(|c| c.parent);
-                        }
-                    }
-
-                    state.current_selection =
-                        nodes
-                            .into_iter()
-                            .fold(state.current_selection, |selection, node| {
-                                show_node_tree(
-                                    ui,
-                                    data_store.current_world(),
-                                    node,
-                                    &selected_entities,
-                                    0,
-                                )
-                                .or(selection)
-                            });
-                });
-            });
+        show_tree_view(ctx, state, data_store);
     }
 
     if state.show_right_panel {
-        egui::SidePanel::right("right_panel")
-            .resizable(true)
-            .default_width(250.0)
-            .min_width(200.0)
-            .frame(side_panel_frame)
-            .show_animated(ctx, state.current_selection.is_entity(), |ui| {
-                let Selection::Entity(selected) = state.current_selection else {
-                    error!("Invalid selection");
-                    return;
-                };
-                TableBuilder::new(ui)
-                    .column(Column::auto().at_least(100.0))
-                    .column(Column::remainder())
-                    .body(|mut body| {
-                        #[cfg(debug_assertions)]
-                        {
-                            body.row(18.0, |mut row| {
-                                row.col(|ui| {
-                                    ui.label("Entity");
-                                });
-                                row.col(|ui| {
-                                    ui.label(format!("{selected:?}"));
-                                });
-                            });
-
-                            // Display position
-                            if let Ok(pos) = data_store.current_world().get::<&Pos2>(selected) {
-                                body.row(18.0, |mut row| {
-                                    row.col(|ui| {
-                                        ui.label("Position");
-                                    });
-                                    row.col(|ui| {
-                                        ui.label(format!("{pos:?}"));
-                                    });
-                                });
-                            }
-
-                            // Display size
-                            if let Ok(size) = data_store.current_world().get::<&Size>(selected) {
-                                body.row(18.0, |mut row| {
-                                    row.col(|ui| {
-                                        ui.label("Size");
-                                    });
-                                    row.col(|ui| {
-                                        ui.label(format!("{size}"));
-                                    });
-                                });
-                            }
-                        }
-
-                        if let Ok(name) = data_store.current_world().get::<&Name>(selected) {
-                            body.row(18.0, |mut row| {
-                                row.col(|ui| {
-                                    ui.label("Name");
-                                });
-                                row.col(|ui| {
-                                    ui.label(format!("{name}"));
-                                });
-                            });
-                        }
-
-                        if let Ok(typename) = data_store.current_world().get::<&TypeName>(selected)
-                        {
-                            body.row(18.0, |mut row| {
-                                row.col(|ui| {
-                                    ui.label("Type");
-                                });
-                                row.col(|ui| {
-                                    ui.label(format!("{typename}"));
-                                });
-                            });
-                        }
-
-                        if let Ok(state) = data_store.current_world().get::<&State>(selected) {
-                            body.row(18.0, |mut row| {
-                                row.col(|ui| {
-                                    ui.label("State");
-                                });
-                                row.col(|ui| {
-                                    ui.label(format!("{state:?}"));
-                                });
-                            });
-                        }
-                    });
-
-                if let Ok(properties) = data_store.current_world().get::<&Properties>(selected) {
-                    ui.add_space(10.0);
-                    egui::ScrollArea::horizontal()
-                        .id_salt("properties_table_scroll_area")
-                        .show(ui, |ui| {
-                            TableBuilder::new(ui)
-                                .column(Column::auto().at_least(100.0))
-                                .column(Column::remainder())
-                                .header(20.0, |mut header| {
-                                    header.col(|ui| {
-                                        ui.strong("Property");
-                                    });
-                                    header.col(|ui| {
-                                        ui.strong("Value");
-                                    });
-                                })
-                                .body(|mut body| {
-                                    for (key, value) in properties.0.iter() {
-                                        body.row(18.0, |mut row| {
-                                            row.col(|ui| {
-                                                ui.label(key);
-                                            });
-                                            row.col(|ui| {
-                                                ui.label(value);
-                                            });
-                                        });
-                                    }
-                                });
-                        });
-                }
-            });
+        show_inspector(ctx, state, data_store);
     }
 
     // Query all child nodes, then follow links to parents to compute the max depth
@@ -648,6 +288,385 @@ pub fn show_ui(
     }
 
     // FIXME: request a repaint if we are displaying a feed on a texture
+}
+
+fn show_top_menu(ctx: &egui::Context, state: &mut UiState, data_store: &mut DataStore) {
+    let frame = egui::Frame::side_top_panel(ctx.style().as_ref()).inner_margin(egui::Margin {
+        left: if cfg!(target_os = "macos") { 76 } else { 6 },
+        ..egui::Margin::same(6)
+    });
+
+    egui::TopBottomPanel::top("top_panel")
+        .frame(frame)
+        .show(ctx, |ui| {
+            egui::MenuBar::new().ui(ui, |ui| {
+                let now = chrono::Local::now();
+
+                ui.menu_button("File", |ui| {
+                    let file_name = format!("glitch {}.ron", now.format("%Y-%m-%d %H.%M"));
+                    let dialog = rfd::FileDialog::new()
+                        .set_file_name(&file_name)
+                        .add_filter("Glitch DataStore Files", &["ron"]);
+
+                    if ui.button("Open...").clicked() {
+                        if let Some(path) = dialog.clone().pick_file() {
+                            info!("Loading datastore from {path:?}");
+                            match load_datastore(path) {
+                                Ok(loaded_datastore) => {
+                                    *data_store = loaded_datastore;
+                                    info!(
+                                        "Successfully loaded datastore with {} commands",
+                                        data_store.history_len()
+                                    );
+
+                                    state.size_tracker = Default::default();
+                                    state.tree_change_tracker = Default::default();
+                                    state.graph_change_tracker = Default::default();
+                                }
+                                Err(e) => {
+                                    error!("Failed to load datastore: {e}");
+                                }
+                            }
+                        }
+                    }
+
+                    if ui.button("Save as...").clicked() {
+                        if let Some(path) = dialog.save_file() {
+                            info!("Saving datastore to {path:?}");
+                            match save_datastore(data_store, path) {
+                                Ok(()) => {
+                                    info!(
+                                        "Successfully saved datastore with {} commands",
+                                        data_store.history_len()
+                                    );
+                                }
+                                Err(e) => {
+                                    error!("Failed to save datastore: {e}");
+                                }
+                            }
+                        }
+                    }
+
+                    if ui.button("Clear").clicked() {
+                        *data_store = DataStore::default();
+                    }
+                });
+
+                ui.menu_button("View", |ui| {
+                    if ui
+                        .button(if state.show_left_panel {
+                            "Hide Left Panel"
+                        } else {
+                            "Show Left Panel"
+                        })
+                        .clicked()
+                    {
+                        state.show_left_panel = !state.show_left_panel;
+                    }
+                    if ui
+                        .button(if state.show_right_panel {
+                            "Hide Right Panel"
+                        } else {
+                            "Show Right Panel"
+                        })
+                        .clicked()
+                    {
+                        state.show_right_panel = !state.show_right_panel;
+                    }
+
+                    if ui
+                        .button(if state.show_debug_window {
+                            "Hide Debug Window"
+                        } else {
+                            "Show Debug Window"
+                        })
+                        .clicked()
+                    {
+                        state.show_debug_window = !state.show_debug_window;
+                    }
+                });
+            });
+        });
+}
+
+fn show_timeline(ctx: &egui::Context, data_store: &mut DataStore) {
+    let frame =
+        egui::Frame::side_top_panel(ctx.style().as_ref()).inner_margin(egui::Margin::same(6));
+
+    egui::TopBottomPanel::bottom("timeline")
+        .frame(frame)
+        .show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Timeline:");
+
+                // Step backward button
+                let can_step_back = data_store.can_step_backward();
+                let back_tooltip = if can_step_back {
+                    "Step backward in time"
+                } else {
+                    "No earlier commands available"
+                };
+                if ui
+                    .add_enabled(can_step_back, egui::Button::new("◀ Back"))
+                    .on_hover_text(back_tooltip)
+                    .clicked()
+                {
+                    data_store.step_backward();
+                }
+
+                // Step forward button
+                let can_step_forward = data_store.can_step_forward();
+                let forward_tooltip = if can_step_forward {
+                    "Step forward in time"
+                } else {
+                    "Already at the latest position"
+                };
+                if ui
+                    .add_enabled(can_step_forward, egui::Button::new("Forward ▶"))
+                    .on_hover_text(forward_tooltip)
+                    .clicked()
+                {
+                    data_store.step_forward();
+                }
+
+                ui.separator();
+
+                // Rolling mode toggle button
+                let is_rolling = matches!(data_store.current_view_mode, ViewMode::Rolling);
+                let (button_text, button_tooltip) = if is_rolling {
+                    ("⏸ Pause", "Stop live updates and freeze at current state")
+                } else {
+                    ("▶ Live", "Resume live updates")
+                };
+                if ui
+                    .button(button_text)
+                    .on_hover_text(button_tooltip)
+                    .clicked()
+                {
+                    if is_rolling {
+                        // Stop at current position (latest timestamp)
+                        if let Some(&latest) = data_store.command_history.keys().next_back() {
+                            data_store.set_view(ViewMode::Specific(latest));
+                        }
+                    } else {
+                        data_store.toggle_rolling_mode();
+                    }
+                }
+
+                ui.separator();
+
+                // Show current position with better formatting
+                match (data_store.current_timeline_position(), is_rolling) {
+                    (Some(position), true) => {
+                        ui.label(format!("Position: {} (Live)", position));
+                    }
+                    (Some(position), false) => {
+                        ui.label(format!("Position: {} (Paused)", position));
+                    }
+                    (None, _) => {
+                        ui.label("No commands recorded");
+                    }
+                }
+            });
+
+            // Add the timeline slider below the buttons
+            if let Some(range) = data_store.timestamp_bounds() {
+                let mut current_position = data_store
+                    .current_timeline_position()
+                    .unwrap_or(*range.start());
+                let prev_position = current_position;
+
+                ui.vertical(|ui| {
+                    ui.style_mut().spacing.slider_width = ui.available_width();
+                    ui.add(
+                        egui::Slider::new(&mut current_position, range)
+                            .clamping(egui::SliderClamping::Always)
+                            .show_value(false)
+                            .trailing_fill(true)
+                            .handle_shape(egui::style::HandleShape::Rect { aspect_ratio: 0.5 }),
+                    );
+                });
+
+                if prev_position != current_position {
+                    data_store.set_view(ViewMode::Specific(current_position));
+                }
+            }
+        });
+}
+
+fn show_tree_view(ctx: &egui::Context, state: &mut UiState, data_store: &mut DataStore) {
+    let frame =
+        egui::Frame::side_top_panel(ctx.style().as_ref()).inner_margin(egui::Margin::same(10));
+
+    egui::SidePanel::left("left_panel")
+        .resizable(true)
+        .frame(frame)
+        .show(ctx, |ui| {
+            egui::ScrollArea::both().show(ui, |ui| {
+                let nodes = {
+                    let world = data_store.current_world();
+                    let root_entities: Vec<_> = world
+                        .query::<&Node>()
+                        .iter()
+                        .filter_map(|(entity, _)| {
+                            if world.get::<&Child>(entity).is_err() {
+                                Some(entity)
+                            } else {
+                                None
+                            }
+                        })
+                        .collect();
+                    sort_entities_by_name(world, root_entities.into_iter())
+                };
+
+                // Collect all the ancestors of the current selection
+                let mut selected_entities = Vec::new();
+                if let Selection::Entity(selected) = state.current_selection {
+                    let view = data_store.current_world().view::<&Child>();
+                    let mut current = Some(selected);
+                    while let Some(entity) = current {
+                        selected_entities.push(entity);
+                        current = view.get(entity).map(|c| c.parent);
+                    }
+                }
+
+                state.current_selection =
+                    nodes
+                        .into_iter()
+                        .fold(state.current_selection, |selection, node| {
+                            show_node_tree(
+                                ui,
+                                data_store.current_world(),
+                                node,
+                                &selected_entities,
+                                0,
+                            )
+                            .or(selection)
+                        });
+            });
+        });
+}
+
+fn show_inspector(ctx: &egui::Context, state: &mut UiState, data_store: &mut DataStore) {
+    let frame =
+        egui::Frame::side_top_panel(ctx.style().as_ref()).inner_margin(egui::Margin::same(10));
+
+    egui::SidePanel::right("right_panel")
+        .resizable(true)
+        .default_width(250.0)
+        .min_width(200.0)
+        .frame(frame)
+        .show_animated(ctx, state.current_selection.is_entity(), |ui| {
+            let Selection::Entity(selected) = state.current_selection else {
+                error!("Invalid selection");
+                return;
+            };
+
+            TableBuilder::new(ui)
+                .column(Column::auto().at_least(100.0))
+                .column(Column::remainder())
+                .body(|mut body| {
+                    #[cfg(debug_assertions)]
+                    {
+                        body.row(18.0, |mut row| {
+                            row.col(|ui| {
+                                ui.label("Entity");
+                            });
+                            row.col(|ui| {
+                                ui.label(format!("{selected:?}"));
+                            });
+                        });
+
+                        // Display position
+                        if let Ok(pos) = data_store.current_world().get::<&Pos2>(selected) {
+                            body.row(18.0, |mut row| {
+                                row.col(|ui| {
+                                    ui.label("Position");
+                                });
+                                row.col(|ui| {
+                                    ui.label(format!("{pos:?}"));
+                                });
+                            });
+                        }
+
+                        // Display size
+                        if let Ok(size) = data_store.current_world().get::<&Size>(selected) {
+                            body.row(18.0, |mut row| {
+                                row.col(|ui| {
+                                    ui.label("Size");
+                                });
+                                row.col(|ui| {
+                                    ui.label(format!("{size}"));
+                                });
+                            });
+                        }
+                    }
+
+                    if let Ok(name) = data_store.current_world().get::<&Name>(selected) {
+                        body.row(18.0, |mut row| {
+                            row.col(|ui| {
+                                ui.label("Name");
+                            });
+                            row.col(|ui| {
+                                ui.label(format!("{name}"));
+                            });
+                        });
+                    }
+
+                    if let Ok(typename) = data_store.current_world().get::<&TypeName>(selected) {
+                        body.row(18.0, |mut row| {
+                            row.col(|ui| {
+                                ui.label("Type");
+                            });
+                            row.col(|ui| {
+                                ui.label(format!("{typename}"));
+                            });
+                        });
+                    }
+
+                    if let Ok(state) = data_store.current_world().get::<&State>(selected) {
+                        body.row(18.0, |mut row| {
+                            row.col(|ui| {
+                                ui.label("State");
+                            });
+                            row.col(|ui| {
+                                ui.label(format!("{state:?}"));
+                            });
+                        });
+                    }
+                });
+
+            if let Ok(properties) = data_store.current_world().get::<&Properties>(selected) {
+                ui.add_space(10.0);
+                egui::ScrollArea::horizontal()
+                    .id_salt("properties_table_scroll_area")
+                    .show(ui, |ui| {
+                        TableBuilder::new(ui)
+                            .column(Column::auto().at_least(100.0))
+                            .column(Column::remainder())
+                            .header(20.0, |mut header| {
+                                header.col(|ui| {
+                                    ui.strong("Property");
+                                });
+                                header.col(|ui| {
+                                    ui.strong("Value");
+                                });
+                            })
+                            .body(|mut body| {
+                                for (key, value) in properties.0.iter() {
+                                    body.row(18.0, |mut row| {
+                                        row.col(|ui| {
+                                            ui.label(key);
+                                        });
+                                        row.col(|ui| {
+                                            ui.label(value);
+                                        });
+                                    });
+                                }
+                            });
+                    });
+            }
+        });
 }
 
 #[cfg(debug_assertions)]
