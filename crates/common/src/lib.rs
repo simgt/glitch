@@ -166,6 +166,9 @@ impl DataStore {
                 // Nothing to do - just switch to rolling view
             }
             ViewMode::Specific(timestamp) => {
+                // Extract layout data before rebuilding, keyed by remote entity ID
+                let preserved_layout = self.extract_layout_by_remote_id();
+
                 // Rebuild fixed snapshot up to the specified timestamp
                 self.fixed_snapshot = Snapshot::new();
 
@@ -179,8 +182,57 @@ impl DataStore {
                         command.run_on(&mut self.fixed_snapshot.world);
                     }
                 }
+
+                // Restore layout data using remote entity ID correlation
+                self.restore_layout_by_remote_id(preserved_layout);
             }
         }
+    }
+
+    fn extract_layout_by_remote_id(&self) -> HashMap<Entity, LayoutData> {
+        let mut layout_data = HashMap::new();
+        let current_world = self.current_world();
+        let current_snapshot = match self.current_view_mode {
+            ViewMode::Rolling => &self.rolling_snapshot,
+            ViewMode::Specific(_) => &self.fixed_snapshot,
+        };
+
+        // Create reverse mapping: local_id -> remote_id
+        let local_to_remote: HashMap<Entity, Entity> = current_snapshot
+            .remote_entities
+            .iter()
+            .map(|(remote, local)| (*local, *remote))
+            .collect();
+
+        // Extract layout keyed by remote entity ID
+        for (local_entity, _) in current_world.query::<&Node>().iter() {
+            if let Some(&remote_entity) = local_to_remote.get(&local_entity) {
+                let mut layout = LayoutData::default();
+
+                if let Ok(pos) = current_world.get::<&egui::Pos2>(local_entity) {
+                    layout.position = Some(*pos);
+                    // Only preserve positions to avoid interfering with layout system
+                    layout_data.insert(remote_entity, layout);
+                }
+            }
+        }
+
+        layout_data
+    }
+
+    fn restore_layout_by_remote_id(&mut self, layout_data: HashMap<Entity, LayoutData>) {
+        let mut buffer = hecs::CommandBuffer::new();
+
+        for (remote_entity, layout) in layout_data {
+            // Look up new local entity ID
+            if let Some(&local_entity) = self.fixed_snapshot.remote_entities.get(&remote_entity) {
+                if let Some(pos) = layout.position {
+                    buffer.insert_one(local_entity, pos);
+                }
+            }
+        }
+
+        buffer.run_on(&mut self.fixed_snapshot.world);
     }
 
     pub fn commands_in<R>(&self, range: R) -> Vec<Command>
@@ -209,6 +261,11 @@ impl DataStore {
             .map(|commands| commands.len())
             .sum()
     }
+}
+
+#[derive(Debug, Clone, Default)]
+struct LayoutData {
+    position: Option<egui::Pos2>,
 }
 
 // FIXME the extra enums are fairly verbose and brainfuck, find a cleaner

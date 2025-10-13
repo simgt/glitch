@@ -55,7 +55,7 @@ pub struct Child {
     pub parent: hecs::Entity,
 }
 
-#[derive(Debug, Constructor)]
+#[derive(Debug, Clone, Constructor)]
 pub struct TopologyLayout {
     pub graph: DiGraphMap<hecs::Entity, ()>,
     pub layers: Vec<Vec<hecs::Entity>>, // FIXME use ndarray
