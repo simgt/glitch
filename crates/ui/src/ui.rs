@@ -729,6 +729,120 @@ fn show_debug_window(ctx: &egui::Context, world: &mut hecs::World) {
         });
 }
 
+fn create_link_shapes(
+    ui: &mut egui::Ui,
+    world: &hecs::World,
+    children: &[hecs::Entity],
+    zoom: f32,
+    current_selection: Selection,
+) -> egui::Shape {
+    use glitch_common::State;
+
+    let style = ui.ctx().style();
+
+    // Draw the links
+    let mut shapes = Vec::new();
+    for (entity, edge) in world.query::<&Edge>().iter() {
+        // If the link is connected to a port that belongs to
+        // one of the children of this node, we will draw it
+        if !children.iter().cloned().any(|c| {
+            world
+                .parent(edge.output_port)
+                .map(|n| c == n)
+                .unwrap_or(false)
+                || world
+                    .parent(edge.input_port)
+                    .map(|n| c == n)
+                    .unwrap_or(false)
+        }) {
+            continue;
+        }
+
+        debug!("Drawing link {edge:?}");
+        let from = match world.get::<&Pos2>(edge.output_port) {
+            Ok(pos) => pos,
+            Err(_) => {
+                error!(
+                    "Output port {port:?} doesn't have a position",
+                    port = edge.output_port
+                );
+                continue;
+            }
+        };
+        let to = match world.get::<&Pos2>(edge.input_port) {
+            Ok(pos) => pos,
+            Err(_) => {
+                error!(
+                    "Input port {port:?} doesn't have a position",
+                    port = edge.input_port
+                );
+                continue;
+            }
+        };
+
+        let selected = current_selection == Selection::Entity(edge.output_port)
+            || current_selection == Selection::Entity(edge.input_port);
+        let stroke = style.link_stroke(selected).zoomed(zoom);
+
+        // Always tessellate the bezier curve into line segments
+        let bezier_points = compute_bezier_points(*from, *to, 0.5);
+        let curve_points = tessellate_bezier_curve(bezier_points, 50);
+
+        // Check the state to determine styling
+        let state = world.get::<&State>(entity).ok();
+
+        match state.map(|s| *s) {
+            Some(State::Pending) => {
+                // Apply dotted styling for pending links
+                let spacing = 4.0 * zoom;
+                let radius = stroke.width / 2.0;
+                let dotted_shapes =
+                    epaint::Shape::dotted_line(&curve_points, stroke.color, spacing, radius);
+                shapes.extend(dotted_shapes);
+            }
+            Some(State::Failed) => {
+                // Apply solid line with cross glyph in middle for failed links
+                let middle_index = curve_points.len() / 2;
+                let middle_pos = curve_points.get(middle_index).copied();
+
+                let solid_shapes = epaint::Shape::line(curve_points, stroke);
+                shapes.push(solid_shapes);
+
+                // Add cross glyph in the middle
+                if let Some(middle_pos) = middle_pos {
+                    // Add background circle to hide the line behind
+                    let bg_radius = 4.0 * zoom;
+                    let bg_circle = epaint::Shape::circle_filled(
+                        middle_pos,
+                        bg_radius,
+                        ui.ctx().style().visuals.extreme_bg_color,
+                    );
+                    shapes.push(bg_circle);
+
+                    let cross_text = ui.ctx().fonts(|fonts| {
+                        epaint::Shape::text(
+                            fonts,
+                            middle_pos,
+                            egui::Align2::CENTER_CENTER,
+                            "⊗",
+                            egui::FontId::proportional(12.0 * zoom),
+                            stroke.color,
+                        )
+                    });
+                    shapes.push(cross_text);
+                }
+            }
+            _ => {
+                // Apply solid styling for all other states (including no state)
+                let solid_shapes = epaint::Shape::line(curve_points, stroke);
+                shapes.push(solid_shapes);
+            }
+        }
+    }
+
+    egui::Shape::Vec(shapes)
+}
+
 fn show_node(
     ui: &mut egui::Ui,
     world: &mut hecs::World,
@@ -837,29 +951,6 @@ fn show_node(
 
         if let Some(mut state) = collapsing_state {
             state.show_body_unindented(ui, |ui| {
-                let edges: Vec<_> = world
-                    .query::<&Edge>()
-                    .iter()
-                    .filter_map(|(_, edge)| {
-                        // If the link is connected to a port that belongs to
-                        // one of the children of this node, we will draw it
-                        if children.iter().cloned().any(|c| {
-                            world
-                                .parent(edge.output_port)
-                                .map(|n| c == n)
-                                .unwrap_or(false)
-                                || world
-                                    .parent(edge.input_port)
-                                    .map(|n| c == n)
-                                    .unwrap_or(false)
-                        }) {
-                            Some(edge.to_owned())
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
-
                 let where_to_put_links = ui.painter().add(egui::Shape::Noop);
                 let zoom = zoom * 0.75;
 
@@ -876,46 +967,8 @@ fn show_node(
                         });
 
                 // Draw the links
-                let mut shapes = Vec::new();
-                for link in edges.iter() {
-                    debug!("Drawing link {link:?}");
-                    let from = match world.get::<&Pos2>(link.output_port) {
-                        Ok(pos) => pos,
-                        Err(_) => {
-                            error!(
-                                "Output port {port:?} doesn't have a position",
-                                port = link.output_port
-                            );
-                            continue;
-                        }
-                    };
-                    let to = match world.get::<&Pos2>(link.input_port) {
-                        Ok(pos) => pos,
-                        Err(_) => {
-                            error!(
-                                "Input port {port:?} doesn't have a position",
-                                port = link.output_port
-                            );
-                            continue;
-                        }
-                    };
-
-                    let selected = current_selection == Selection::Entity(link.output_port)
-                        || current_selection == Selection::Entity(link.input_port);
-                    let stroke = style.link_stroke(selected).zoomed(zoom);
-
-                    shapes.push(epaint::Shape::CubicBezier(
-                        epaint::CubicBezierShape::from_points_stroke(
-                            compute_bezier_points(*from, *to, 0.5),
-                            false,
-                            egui::Color32::TRANSPARENT,
-                            stroke,
-                        ),
-                    ));
-                }
-
-                ui.painter()
-                    .set(where_to_put_links, egui::Shape::Vec(shapes));
+                let link_shapes = create_link_shapes(ui, world, &children, zoom, current_selection);
+                ui.painter().set(where_to_put_links, link_shapes);
             });
         }
     }
@@ -1023,6 +1076,34 @@ fn compute_bezier_points(from: Pos2, to: Pos2, curvature: f32) -> [Pos2; 4] {
     let control1 = Pos2::new(from.x + control_x_offset, from.y);
     let control2 = Pos2::new(to.x - control_x_offset, to.y);
     [from, control1, control2, to]
+}
+
+/// Tessellate a cubic bezier curve into line segments
+fn tessellate_bezier_curve(points: [Pos2; 4], num_segments: usize) -> Vec<Pos2> {
+    let mut result = Vec::with_capacity(num_segments + 1);
+
+    for i in 0..=num_segments {
+        let t = i as f32 / num_segments as f32;
+        let point = evaluate_cubic_bezier(points, t);
+        result.push(point);
+    }
+
+    result
+}
+
+/// Evaluate a cubic bezier curve at parameter t (0.0 to 1.0)
+fn evaluate_cubic_bezier(points: [Pos2; 4], t: f32) -> Pos2 {
+    let [p0, p1, p2, p3] = points;
+    let t2 = t * t;
+    let t3 = t2 * t;
+    let mt = 1.0 - t;
+    let mt2 = mt * mt;
+    let mt3 = mt2 * mt;
+
+    Pos2 {
+        x: mt3 * p0.x + 3.0 * mt2 * t * p1.x + 3.0 * mt * t2 * p2.x + t3 * p3.x,
+        y: mt3 * p0.y + 3.0 * mt2 * t * p1.y + 3.0 * mt * t2 * p2.y + t3 * p3.y,
+    }
 }
 
 fn show_node_tree(
