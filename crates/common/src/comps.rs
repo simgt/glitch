@@ -1,5 +1,4 @@
-use derive_more::{Constructor, Display, From};
-use petgraph::graphmap::DiGraphMap;
+use derive_more::{Display, From};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tracing::error;
@@ -55,11 +54,8 @@ pub struct Child {
     pub parent: hecs::Entity,
 }
 
-#[derive(Debug, Clone, Constructor)]
-pub struct TopologyLayout {
-    pub graph: DiGraphMap<hecs::Entity, ()>,
-    pub layers: Vec<Vec<hecs::Entity>>, // FIXME use ndarray
-}
+// Re-export Layers from graph-layout as a type alias for easier migration
+pub type Layers = graph_layout::Layers<hecs::Entity>;
 
 pub trait WorldTreeExt {
     // FIXME add a query_children::<Q> method instead

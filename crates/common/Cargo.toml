@@ -15,6 +15,7 @@ derive_more.workspace = true
 egui.workspace = true
 enum_dispatch.workspace = true
 glib = { workspace = true, optional = true }
+graph-layout = { path = "../graph-layout" }
 gst = { workspace = true, optional = true }
 gst-sys = { workspace = true, optional = true }
 hecs.workspace = true

@@ -1787,6 +1787,7 @@ dependencies = [
  "egui 0.32.3",
  "enum_dispatch",
  "glib",
+ "graph-layout",
  "gstreamer",
  "gstreamer-sys",
  "hecs",
@@ -1838,6 +1839,7 @@ dependencies = [
  "epaint 0.32.3",
  "glib",
  "glitch-common",
+ "graph-layout",
  "gstreamer",
  "gstreamer-app",
  "gstreamer-audio",
@@ -2006,6 +2008,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fdf242682df893b86f33a73828fb09ca4b2d3bb6cc95249707fc684d27484b91"
 dependencies = [
  "bitflags 2.9.4",
+]
+
+[[package]]
+name = "graph-layout"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "petgraph",
 ]
 
 [[package]]

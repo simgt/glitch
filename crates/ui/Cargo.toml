@@ -16,6 +16,7 @@ egui_extras.workspace = true
 epaint.workspace = true
 glib.workspace = true
 glitch-common = { path = "../common" }
+graph-layout = { path = "../graph-layout" }
 gst-app.workspace = true
 gst-audio.workspace = true
 gst-base.workspace = true

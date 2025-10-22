@@ -1,4 +1,4 @@
-use crate::{DAGLayout, GraphStyle, Zoom};
+use crate::{GraphStyle, Layout, Zoom};
 use anyhow::Result;
 use egui::{self, collapsing_header::CollapsingState, Modifiers, Pos2, Rect, Vec2};
 use egui_extras::{Column, TableBuilder};
@@ -182,7 +182,7 @@ pub fn show_ui(
                     let roots = sort_entities_by_name(world, root_entities.into_iter());
 
                     let node_margin = ui.style().node_margin().zoomed(zoom);
-                    let layout = DAGLayout::new(node_margin.sum());
+                    let layout = Layout::new(node_margin.sum());
 
                     let parent_nodes = data_store
                         .current_world()

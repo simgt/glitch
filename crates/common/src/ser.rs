@@ -128,7 +128,7 @@ impl SerializeContext for SerContext {
     where
         S: serde::ser::SerializeMap,
     {
-        // Size, Position and TopologyLayout are not serialized as they are rebuilt
+        // Size, Position and Layers are not serialized as they are rebuilt
         // by the application
         try_serialize::<Node, _, _>(&entity, &ComponentId::Node, &mut map)?;
         try_serialize::<State, _, _>(&entity, &ComponentId::State, &mut map)?;

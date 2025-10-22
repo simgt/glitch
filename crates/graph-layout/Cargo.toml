@@ -1,0 +1,11 @@
+[package]
+name = "graph-layout"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Generic graph layout algorithms"
+
+[dependencies]
+anyhow.workspace = true
+petgraph.workspace = true
