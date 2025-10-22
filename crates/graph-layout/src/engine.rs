@@ -1,5 +1,4 @@
 use crate::{NodeSizes, Point};
-use anyhow::Result;
 use std::collections::HashMap;
 use std::hash::Hash;
 
@@ -14,12 +13,15 @@ pub trait LayoutEngine<G> {
     /// The type used to identify nodes in the graph
     type NodeId: Copy + Ord + Hash;
 
+    /// The error type for this layout engine
+    type Error: std::error::Error;
+
     /// Compute node positions for the given graph
     ///
     /// # Errors
     /// Returns an error if the layout computation fails (e.g., graph contains
     /// cycles for DAG layouts, or other layout-specific constraints are violated)
-    fn layout<S>(&self, graph: G, sizes: &S) -> Result<HashMap<Self::NodeId, Point>>
+    fn layout<S>(&self, graph: G, sizes: &S) -> Result<HashMap<Self::NodeId, Point>, Self::Error>
     where
         S: NodeSizes<Self::NodeId>;
 }

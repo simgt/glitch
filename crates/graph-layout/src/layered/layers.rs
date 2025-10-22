@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use super::LayeredLayoutError;
 use petgraph::algo::toposort;
 use petgraph::graphmap::DiGraphMap;
 use petgraph::visit::{IntoNeighborsDirected, IntoNodeIdentifiers};
@@ -11,10 +11,10 @@ use std::hash::Hash;
 /// Uses a two-pass approach to minimize edge lengths:
 /// - First pass: assign each node to the layer after its predecessors
 /// - Second pass: move nodes closer to their successors when possible
-pub(crate) fn assign_layers<G>(graph: &G) -> Result<Vec<Vec<G::NodeId>>>
+pub(crate) fn assign_layers<G>(graph: &G) -> Result<Vec<Vec<G::NodeId>>, LayeredLayoutError<G::NodeId>>
 where
     G: IntoNodeIdentifiers + IntoNeighborsDirected,
-    G::NodeId: Copy + Ord + Hash,
+    G::NodeId: Copy + Ord + Hash + std::fmt::Debug,
 {
     // Convert to DiGraphMap for toposort
     let mut petgraph = DiGraphMap::new();
@@ -27,7 +27,8 @@ where
         }
     }
 
-    let topo_order = toposort(&petgraph, None).map_err(|_| anyhow!("Graph has cycles"))?;
+    let topo_order = toposort(&petgraph, None)
+        .map_err(|cycle| LayeredLayoutError::GraphHasCycle(cycle.node_id()))?;
     let mut layer_map: HashMap<_, usize> = HashMap::new();
 
     // First pass: forward, assign each node to layer after its predecessors

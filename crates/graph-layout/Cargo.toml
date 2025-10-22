@@ -7,5 +7,5 @@ authors.workspace = true
 description = "Generic graph layout algorithms"
 
 [dependencies]
-anyhow.workspace = true
 petgraph.workspace = true
+thiserror.workspace = true

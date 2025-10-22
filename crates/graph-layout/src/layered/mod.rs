@@ -5,14 +5,26 @@ mod positions;
 use crate::{LayoutEngine, NodeSizes, Point, Vec2};
 use petgraph::visit::{IntoNeighborsDirected, IntoNodeIdentifiers};
 use petgraph::Direction;
-use anyhow::Result;
 use petgraph::graphmap::DiGraphMap;
 use std::collections::HashMap;
+use std::fmt;
 use std::hash::Hash;
+use thiserror::Error;
 
 use layers::assign_layers;
 use crossings::minimize_crossings;
 use positions::assign_coordinates;
+
+/// Errors that can occur during layered layout computation
+#[derive(Debug, Error)]
+pub enum LayeredLayoutError<N>
+where
+    N: fmt::Debug,
+{
+    /// The graph contains a cycle at the given node
+    #[error("graph contains a cycle at node {0:?}")]
+    GraphHasCycle(N),
+}
 
 /// Configuration for the layered (Sugiyama-style) DAG layout
 #[derive(Debug, Clone)]
@@ -51,7 +63,7 @@ impl LayeredLayout {
 #[derive(Debug, Clone)]
 pub struct Layers<N>
 where
-    N: Copy + Ord + Hash,
+    N: Copy + Ord + Hash + std::fmt::Debug,
 {
     /// Internal graph representation for efficient edge lookups
     pub(crate) graph: DiGraphMap<N, ()>,
@@ -71,10 +83,10 @@ impl LayeredLayout {
     ///
     /// # Errors
     /// Returns an error if the graph contains cycles
-    pub fn compute_layers<G>(&self, graph: G) -> Result<Layers<G::NodeId>>
+    pub fn compute_layers<G>(&self, graph: G) -> Result<Layers<G::NodeId>, LayeredLayoutError<G::NodeId>>
     where
         G: IntoNodeIdentifiers + IntoNeighborsDirected,
-        G::NodeId: Copy + Ord + Hash,
+        G::NodeId: Copy + Ord + Hash + std::fmt::Debug,
     {
         let layers = assign_layers(&graph)?;
         let (layers, crossings) = minimize_crossings(&graph, layers, self.max_crossing_iterations);
@@ -107,7 +119,7 @@ impl LayeredLayout {
         sizes: &S,
     ) -> HashMap<N, Point>
     where
-        N: Copy + Ord + Hash,
+        N: Copy + Ord + Hash + std::fmt::Debug,
         S: NodeSizes<N>,
     {
         assign_coordinates(
@@ -124,11 +136,12 @@ impl LayeredLayout {
 impl<G> LayoutEngine<G> for LayeredLayout
 where
     G: IntoNodeIdentifiers + IntoNeighborsDirected,
-    G::NodeId: Copy + Ord + Hash,
+    G::NodeId: Copy + Ord + Hash + std::fmt::Debug,
 {
     type NodeId = G::NodeId;
+    type Error = LayeredLayoutError<G::NodeId>;
 
-    fn layout<S>(&self, graph: G, sizes: &S) -> Result<HashMap<Self::NodeId, Point>>
+    fn layout<S>(&self, graph: G, sizes: &S) -> Result<HashMap<Self::NodeId, Point>, Self::Error>
     where
         S: NodeSizes<Self::NodeId>,
     {

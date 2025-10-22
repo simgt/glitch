@@ -2014,8 +2014,8 @@ dependencies = [
 name = "graph-layout"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "petgraph",
+ "thiserror 1.0.64",
 ]
 
 [[package]]

@@ -49,4 +49,4 @@ pub use petgraph::visit::{GraphBase, IntoNeighborsDirected, IntoNodeIdentifiers}
 pub use petgraph::Direction;
 
 // Re-export layered layout types
-pub use layered::{LayeredLayout, Layers};
+pub use layered::{LayeredLayout, LayeredLayoutError, Layers};
