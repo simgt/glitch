@@ -1,5 +1,5 @@
 <p align="center">
-    <img src="https://github.com/simgt/pipewerk/actions/workflows/ci.yml/badge.svg?branch=main" />
+    <img src="https://github.com/eigenscape/pipewerk/actions/workflows/ci.yml/badge.svg" />
 </p>
 
 # Pipewerk
