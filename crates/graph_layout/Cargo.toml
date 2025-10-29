@@ -1,10 +1,10 @@
 [package]
-name = "graph-layout"
+name = "pipewerk-graph-layout"
 version.workspace = true
 edition.workspace = true
 repository.workspace = true
 authors.workspace = true
-description = "Generic graph layout algorithms"
+description = "Layered graph layout algorithm for petgraph traits"
 
 [dependencies]
 petgraph.workspace = true

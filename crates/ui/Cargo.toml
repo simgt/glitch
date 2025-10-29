@@ -5,6 +5,7 @@ edition.workspace = true
 repository.workspace = true
 authors.workspace = true
 description.workspace = true
+publish = false
 
 [dependencies]
 anyhow.workspace = true
@@ -16,7 +17,7 @@ egui_extras.workspace = true
 epaint.workspace = true
 glib.workspace = true
 pipewerk-common = { path = "../common" }
-graph-layout = { path = "../graph-layout" }
+graph-layout = { path = "../graph_layout" }
 gst-app.workspace = true
 gst-audio.workspace = true
 gst-base.workspace = true

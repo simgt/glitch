@@ -5,8 +5,8 @@ resolver = "2"
 [workspace.package]
 version = "0.1.0"
 authors = ["Simon Guillot <simon@eigenscape.com>"]
-description = "A gstreamer pipeline viewer and debugger"
-repository = "https://github.com/simgt/pipewerk"
+description = "A compute graph visualiser with a tracer for gstreamer pipelines."
+repository = "https://github.com/eigenscape/pipewerk"
 edition = "2021"
 
 [workspace.dependencies]
@@ -38,6 +38,6 @@ thiserror = "1.0"
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = [
-    "tracing-log",
-    "env-filter",
+  "tracing-log",
+  "env-filter",
 ] }

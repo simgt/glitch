@@ -5,6 +5,7 @@ edition.workspace = true
 repository.workspace = true
 authors.workspace = true
 description.workspace = true
+publish = false
 
 [features]
 reload = ["dep:hot-lib-reloader"]
