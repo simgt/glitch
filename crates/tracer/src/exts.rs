@@ -1,5 +1,5 @@
 use glib::ParamFlags;
-use glitch_common::{comps::*, RecordingStream};
+use pipewerk_common::{comps::*, RecordingStream};
 use gst::glib::{gobject_ffi::g_strdup_value_contents, object::ObjectExt, translate::ToGlibPtr};
 use gst::{prelude::*, Element, Pad};
 use hecs::Entity;

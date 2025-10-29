@@ -1,8 +1,8 @@
 <p align="center">
-    <img src="https://github.com/simgt/glitch/actions/workflows/ci.yml/badge.svg?branch=main" />
+    <img src="https://github.com/simgt/pipewerk/actions/workflows/ci.yml/badge.svg?branch=main" />
 </p>
 
-# Glitch
+# Pipewerk
 
 A compute graph visualiser with a tracer for gstreamer pipelines.
 
@@ -24,10 +24,10 @@ and start your program with the custom tracer:
 
 ```
 export GST_PLUGIN_PATH=$PWD/target/release/
-GST_TRACERS="glitchtracing" gst-launch-1.0 videotestsrc ! identity ! fakesink
+GST_TRACERS="pipewerktracing" gst-launch-1.0 videotestsrc ! identity ! fakesink
 ```
 
-If needed, change the ip and port to use for connecting to the app with `GST_TRACERS="glitchtracing(ip=$IP,port=$PORT)"`.
+If needed, change the ip and port to use for connecting to the app with `GST_TRACERS="pipewerktracing(ip=$IP,port=$PORT)"`.
 
 **The quickest way to try the UI is to load [demo_save.ron](./demo_save.ron) from the top menu. No gstreamer required.**
 

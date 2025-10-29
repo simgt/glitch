@@ -1,5 +1,5 @@
 [package]
-name = "glitch-app"
+name = "pipewerk-app"
 version.workspace = true
 edition.workspace = true
 repository.workspace = true
@@ -15,8 +15,8 @@ clap = { version = "4", features = ["derive"] }
 eframe.workspace = true
 egui.workspace = true
 glib.workspace = true
-glitch-common = { path = "../common" }
-glitch-ui = { path = "../ui" }
+pipewerk-common = { path = "../common" }
+pipewerk-ui = { path = "../ui" }
 hecs.workspace = true
 hot-lib-reloader = { version = "^0.7", optional = true }
 log.workspace = true

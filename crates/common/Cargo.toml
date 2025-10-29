@@ -1,5 +1,5 @@
 [package]
-name = "glitch-common"
+name = "pipewerk-common"
 version.workspace = true
 edition.workspace = true
 repository.workspace = true

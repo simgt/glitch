@@ -1,8 +1,8 @@
 #!/bin/bash
 
 export GST_PLUGIN_PATH=$PWD/target/debug/
-export GST_TRACERS="glitchtracing"
-export GST_DEBUG="glitch*:7"
+export GST_TRACERS="pipewerktracing"
+export GST_DEBUG="pipewerk*:7"
 
 # Array to store PIDs of background processes
 PIDS=()

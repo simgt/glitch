@@ -1,13 +1,13 @@
 use gst::glib;
 
 glib::wrapper! {
-    pub struct GlitchTracer(ObjectSubclass<imp::GlitchTracer>)
+    pub struct PipewerkTracer(ObjectSubclass<imp::PipewerkTracer>)
        @extends gst::Tracer, gst::Object;
 }
 
 mod imp {
     use crate::EntityExt;
-    use glitch_common::{Child, RecordingStream, State};
+    use pipewerk_common::{Child, RecordingStream, State};
     use gst::{glib, prelude::*, subclass::prelude::*};
     use hecs::Entity;
     use log::*;
@@ -18,20 +18,20 @@ mod imp {
 
     static _CAT: Lazy<gst::DebugCategory> = Lazy::new(|| {
         gst::DebugCategory::new(
-            "glitchtracing",
+            "pipewerktracing",
             gst::DebugColorFlags::all(),
-            Some("Glitch client tracer"),
+            Some("Pipewerk client tracer"),
         )
     });
 
-    pub struct GlitchTracer {
-        pub stream: glitch_common::RecordingStream,
+    pub struct PipewerkTracer {
+        pub stream: pipewerk_common::RecordingStream,
     }
 
     #[glib::object_subclass]
-    impl ObjectSubclass for GlitchTracer {
-        const NAME: &'static str = "GlitchTracer";
-        type Type = super::GlitchTracer;
+    impl ObjectSubclass for PipewerkTracer {
+        const NAME: &'static str = "PipewerkTracer";
+        type Type = super::PipewerkTracer;
         type ParentType = gst::Tracer;
 
         fn new() -> Self {
@@ -41,10 +41,10 @@ mod imp {
         }
     }
 
-    impl ObjectImpl for GlitchTracer {
+    impl ObjectImpl for PipewerkTracer {
         fn constructed(&self) {
             let mut ip = Ipv4Addr::LOCALHOST;
-            let mut port = glitch_common::DEFAULT_PORT;
+            let mut port = pipewerk_common::DEFAULT_PORT;
             if let Some(params) = self.obj().property::<Option<String>>("params") {
                 let structure = {
                     let tmp = format!("params,{}", params);
@@ -81,9 +81,9 @@ mod imp {
         }
     }
 
-    impl GstObjectImpl for GlitchTracer {}
+    impl GstObjectImpl for PipewerkTracer {}
 
-    impl TracerImpl for GlitchTracer {
+    impl TracerImpl for PipewerkTracer {
         fn element_add_pad(&self, _ts: u64, element: &gst::Element, pad: &gst::Pad) {
             // We're receiving events in a way that doesn't seem logical, for instance
             // in the case of decodebin pads are linked before being added, etc.

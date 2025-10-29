@@ -1,9 +1,9 @@
 use anyhow::Result;
 use clap::Parser;
 use eframe::egui;
-use glitch_common::*;
+use pipewerk_common::*;
 #[cfg(not(feature = "reload"))]
-use glitch_ui::*;
+use pipewerk_ui::*;
 
 #[cfg(feature = "reload")]
 use hot_lib::*;
@@ -18,13 +18,13 @@ use tracing_subscriber::{prelude::*, EnvFilter};
 
 #[cfg(feature = "reload")]
 #[hot_lib_reloader::hot_module(
-    dylib = "glitch_ui",
+    dylib = "pipewerk_ui",
     lib_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/debug")
 )]
 mod hot_lib {
     use eframe::egui;
-    pub use glitch_common::DataStore;
-    pub use glitch_ui::UiState;
+    pub use pipewerk_common::DataStore;
+    pub use pipewerk_ui::UiState;
 
     hot_functions_from_file!("crates/ui/src/ui.rs");
 
@@ -166,7 +166,7 @@ fn main() -> Result<(), eframe::Error> {
         ..Default::default()
     };
     eframe::run_native(
-        "Glitch",
+        "Pipewerk",
         options,
         Box::new(|cc| {
             // When hot reload is enabled, repaint after every lib change
@@ -187,7 +187,7 @@ fn main() -> Result<(), eframe::Error> {
 mod tests {
     use super::*;
     use crate::Command;
-    use glitch_common::client::connect_client;
+    use pipewerk_common::client::connect_client;
     use hecs::Entity;
     use test_log::test;
 

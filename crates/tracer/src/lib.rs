@@ -23,15 +23,15 @@ mod gst_plugin {
 
         gst::Tracer::register(
             Some(plugin),
-            "glitchtracing",
-            <super::GlitchTracer as glib::types::StaticType>::static_type(),
+            "pipewerktracing",
+            <super::PipewerkTracer as glib::types::StaticType>::static_type(),
         )?;
 
         Ok(())
     }
 
     gst::plugin_define!(
-        glitch_tracer,
+        pipewerk_tracer,
         env!("CARGO_PKG_DESCRIPTION"),
         plugin_init,
         env!("CARGO_PKG_VERSION"),

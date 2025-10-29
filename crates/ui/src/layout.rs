@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use egui::Pos2;
-use glitch_common::comps::*;
+use pipewerk_common::comps::*;
 use graph_layout::{LayeredLayout, Vec2 as LayoutVec2};
 use petgraph::graphmap::DiGraphMap;
 use tracing::{debug, error};

@@ -2,7 +2,7 @@ use crate::{GraphStyle, Layout, Zoom};
 use anyhow::Result;
 use egui::{self, collapsing_header::CollapsingState, Modifiers, Pos2, Rect, Vec2};
 use egui_extras::{Column, TableBuilder};
-use glitch_common::{
+use pipewerk_common::{
     comps::*,
     ser::{load_datastore, save_datastore},
     DataStore, ViewMode,
@@ -303,10 +303,10 @@ fn show_top_menu(ctx: &egui::Context, state: &mut UiState, data_store: &mut Data
                 let now = chrono::Local::now();
 
                 ui.menu_button("File", |ui| {
-                    let file_name = format!("glitch {}.ron", now.format("%Y-%m-%d %H.%M"));
+                    let file_name = format!("pipewerk {}.ron", now.format("%Y-%m-%d %H.%M"));
                     let dialog = rfd::FileDialog::new()
                         .set_file_name(&file_name)
-                        .add_filter("Glitch DataStore Files", &["ron"]);
+                        .add_filter("Pipewerk DataStore Files", &["ron"]);
 
                     if ui.button("Open...").clicked() {
                         if let Some(path) = dialog.clone().pick_file() {
@@ -755,7 +755,7 @@ fn create_link_shapes(
     zoom: f32,
     current_selection: Selection,
 ) -> egui::Shape {
-    use glitch_common::State;
+    use pipewerk_common::State;
 
     let style = ui.ctx().style();
 

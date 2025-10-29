@@ -1758,108 +1758,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "glitch-app"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "eframe",
- "egui 0.32.3",
- "glib",
- "glitch-common",
- "glitch-ui",
- "hecs",
- "hot-lib-reloader",
- "log",
- "remoc",
- "test-log",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "glitch-common"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "derive_more",
- "egui 0.32.3",
- "enum_dispatch",
- "glib",
- "graph-layout",
- "gstreamer",
- "gstreamer-sys",
- "hecs",
- "petgraph",
- "remoc",
- "ron",
- "serde",
- "tempfile",
- "test-log",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "glitch-tracer"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "crossbeam",
- "env_logger",
- "glib",
- "glitch-common",
- "gst-plugin-version-helper",
- "gstreamer",
- "gstreamer-app",
- "gstreamer-audio",
- "gstreamer-base",
- "gstreamer-sys",
- "gstreamer-utils",
- "gstreamer-video",
- "hecs",
- "log",
- "once_cell",
- "remoc",
- "tokio",
-]
-
-[[package]]
-name = "glitch-ui"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "chrono",
- "crossbeam",
- "eframe",
- "egui 0.32.3",
- "egui_extras",
- "egui_table",
- "epaint 0.32.3",
- "glib",
- "glitch-common",
- "graph-layout",
- "gstreamer",
- "gstreamer-app",
- "gstreamer-audio",
- "gstreamer-base",
- "gstreamer-sys",
- "gstreamer-utils",
- "gstreamer-video",
- "hecs",
- "image",
- "log",
- "petgraph",
- "remoc",
- "rfd",
- "ron",
- "serde",
- "tempfile",
- "tracing",
-]
-
-[[package]]
 name = "glow"
 version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3312,6 +3210,108 @@ dependencies = [
  "atomic-waker",
  "fastrand",
  "futures-io",
+]
+
+[[package]]
+name = "pipewerk-app"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "eframe",
+ "egui 0.32.3",
+ "glib",
+ "hecs",
+ "hot-lib-reloader",
+ "log",
+ "pipewerk-common",
+ "pipewerk-ui",
+ "remoc",
+ "test-log",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "pipewerk-common"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "derive_more",
+ "egui 0.32.3",
+ "enum_dispatch",
+ "glib",
+ "graph-layout",
+ "gstreamer",
+ "gstreamer-sys",
+ "hecs",
+ "petgraph",
+ "remoc",
+ "ron",
+ "serde",
+ "tempfile",
+ "test-log",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "pipewerk-tracer"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "crossbeam",
+ "env_logger",
+ "glib",
+ "gst-plugin-version-helper",
+ "gstreamer",
+ "gstreamer-app",
+ "gstreamer-audio",
+ "gstreamer-base",
+ "gstreamer-sys",
+ "gstreamer-utils",
+ "gstreamer-video",
+ "hecs",
+ "log",
+ "once_cell",
+ "pipewerk-common",
+ "remoc",
+ "tokio",
+]
+
+[[package]]
+name = "pipewerk-ui"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "crossbeam",
+ "eframe",
+ "egui 0.32.3",
+ "egui_extras",
+ "egui_table",
+ "epaint 0.32.3",
+ "glib",
+ "graph-layout",
+ "gstreamer",
+ "gstreamer-app",
+ "gstreamer-audio",
+ "gstreamer-base",
+ "gstreamer-sys",
+ "gstreamer-utils",
+ "gstreamer-video",
+ "hecs",
+ "image",
+ "log",
+ "petgraph",
+ "pipewerk-common",
+ "remoc",
+ "rfd",
+ "ron",
+ "serde",
+ "tempfile",
+ "tracing",
 ]
 
 [[package]]

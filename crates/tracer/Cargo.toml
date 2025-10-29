@@ -1,5 +1,5 @@
 [package]
-name = "glitch-tracer"
+name = "pipewerk-tracer"
 version.workspace = true
 edition.workspace = true
 repository.workspace = true
@@ -10,7 +10,7 @@ description.workspace = true
 anyhow.workspace = true
 crossbeam.workspace = true
 glib.workspace = true
-glitch-common = { path = "../common", features = ["gstreamer"] }
+pipewerk-common = { path = "../common", features = ["gstreamer"] }
 gst-app.workspace = true
 gst-audio.workspace = true
 gst-base.workspace = true

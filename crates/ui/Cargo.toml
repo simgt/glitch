@@ -1,5 +1,5 @@
 [package]
-name = "glitch-ui"
+name = "pipewerk-ui"
 version.workspace = true
 edition.workspace = true
 repository.workspace = true
@@ -15,7 +15,7 @@ egui.workspace = true
 egui_extras.workspace = true
 epaint.workspace = true
 glib.workspace = true
-glitch-common = { path = "../common" }
+pipewerk-common = { path = "../common" }
 graph-layout = { path = "../graph-layout" }
 gst-app.workspace = true
 gst-audio.workspace = true
