@@ -19,6 +19,11 @@ Features:
 - [x] Timeline of events with topology changes
 - [ ] Live view of pads content for known caps
 
+For a variation of this that works with [rerun](https://rerun.io), have a look
+at [gst-rerun](https://github.com/eigenscape/gst-rerun).
+
+## Quick Start
+
 To use it with your gstreamer pipeline: build all the targets, launch the app (`cargo run --release`)
 and start your program with the custom tracer:
 
@@ -38,12 +43,12 @@ about the kind of compute graph it's visualising. The goal is to be able to
 support other frameworks like [vector](https://github.com/vectordotdev/vector)
 or [mediapipe](https://github.com/google-ai-edge/mediapipe).
 
-The graph layouting is done by a rough implementation of a [Sugiyama-style algorithm](https://en.wikipedia.org/wiki/Layered_graph_drawing),
-it still requires extensive work and may or may not give a pretty output for your use case.
+The graph layouting is done by a [Sugiyama-style algorithm](https://en.wikipedia.org/wiki/Layered_graph_drawing),
+it still requires extensive work and may or may not result in a pretty output for your use case.
 
 The app's data model is an [ECS](https://en.wikipedia.org/wiki/Entity_component_system) that should allow
-for maximum flexibility when used to view the content of different frameworks (it's good enough for [rerun](https://rerun.io/docs/concepts/entity-component) so it'll be for us).
-The tracer that is embedded in the actual gstreamer program sends atomic updates to be performed on entities displayed by the app: an element
+for maximum flexibility when used to view the content of different frameworks.
+The tracer embedded in the actual gstreamer program sends atomic updates to be performed on entities displayed by the app: an element
 is an entity with a node component, a name, a state etc. and once it reaches the app a size and a position can be added.
 
 The code is split in-between the following crates:
